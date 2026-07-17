@@ -416,7 +416,7 @@ function applyExtracted(o){
 let apiKey=''; try{ apiKey=localStorage.getItem('ttd_gemini_key')||''; }catch(e){}
 function getKey(){ return (apiKey||'').trim(); }
 function saveKeyVal(k){ apiKey=(k||'').trim(); try{ localStorage.setItem('ttd_gemini_key',apiKey); }catch(e){} }
-const GEMINI_MODEL='gemini-flash-latest';
+const GEMINI_MODEL='gemini-3.1-flash-lite';
 const GEMINI_URL=k=>'https://generativelanguage.googleapis.com/v1beta/models/'+GEMINI_MODEL+':generateContent?key='+encodeURIComponent(k);
 function setSettingsStatus(t,cls){ const el=$('settingsStatus'); if(!el)return; el.textContent=t||''; el.className='modal-status'+(cls?' '+cls:''); }
 function openSettings(){ const k=getKey(); if($('settingsKey')) $('settingsKey').value=k; setSettingsStatus(''); if($('savedBadge')) $('savedBadge').style.display=k?'block':'none'; $('settingsModal').style.display='flex'; }
