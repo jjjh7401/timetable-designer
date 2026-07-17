@@ -64,6 +64,23 @@
   .preview-stage{position:relative;}
   #previewFrame{border:none;background:transparent;display:block;box-shadow:0 12px 40px rgba(0,0,0,.14);border-radius:8px;}
   .hint{font-size:12px;color:#9aa0aa;margin-top:10px;text-align:center;}
+  .pdf-drop{border:2px dashed #c7c9f5;background:#f5f6ff;border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:.15s;margin-bottom:8px;}
+  .pdf-drop:hover,.pdf-drop.drag{background:#eceefe;border-color:var(--acc);}
+  .pdf-drop .pdf-ico{font-size:28px;}
+  .pdf-drop .pdf-txt{font-size:13.5px;font-weight:600;color:#374151;margin-top:6px;}
+  .pdf-drop .pdf-txt b{color:var(--acc);}
+  .pdf-drop .pdf-sub{font-size:11.5px;color:var(--mut);margin-top:5px;line-height:1.5;}
+  .pdf-preview{display:flex;gap:8px;overflow-x:auto;padding:8px 0;}
+  .pdf-thumb{height:120px;border:1px solid var(--bd);border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.06);flex:none;}
+  .btn-analyze{width:100%;font-size:13.5px;font-weight:700;color:#fff;background:linear-gradient(135deg,#4f46e5,#8b5cf6);border:none;border-radius:10px;padding:12px;cursor:pointer;margin-top:4px;}
+  .btn-analyze:hover{filter:brightness(1.07);}
+  .btn-analyze:disabled{opacity:.6;cursor:default;}
+  .analyze-status{font-size:12px;color:var(--mut);margin:8px 2px 0;text-align:center;min-height:16px;line-height:1.5;}
+  .ai-key{margin-top:12px;background:#fff;border:1px solid var(--bd);border-radius:10px;padding:10px 12px;}
+  .ai-key-label{font-size:11.5px;font-weight:700;color:var(--mut);display:block;margin-bottom:6px;}
+  .ai-key input{width:100%;font-size:12.5px;padding:7px 10px;border:1px solid var(--bd);border-radius:7px;font-family:inherit;}
+  .ai-key input:focus{outline:none;border-color:var(--acc);}
+  .ai-key a{font-size:11px;color:var(--acc);text-decoration:none;display:inline-block;margin-top:6px;}
 </style>
 </head>
 <body>
@@ -81,6 +98,22 @@
       <div id="styleList"></div>
     </div>
     <div class="col editor">
+      <div class="sec-t">원본 PDF 업로드</div>
+      <div class="pdf-drop" id="pdfDrop">
+        <div class="pdf-ico">📄</div>
+        <div class="pdf-txt"><b>PDF를 여기에 드롭</b> 또는 클릭해서 선택</div>
+        <div class="pdf-sub">시간표 원본을 올리면 AI가 분석해 아래 항목을 자동으로 채웁니다</div>
+        <input type="file" id="pdfInput" accept="application/pdf" hidden>
+      </div>
+      <div class="pdf-preview" id="pdfPreview" style="display:none"></div>
+      <div id="pdfActions" style="display:none"><button class="btn-analyze" id="btnAnalyze">✨ AI로 분석해서 자동 채우기</button></div>
+      <div class="analyze-status" id="analyzeStatus"></div>
+      <div class="ai-key">
+        <span class="ai-key-label">🔑 Gemini API 키 (최초 1회 · 브라우저에만 저장)</span>
+        <input id="aiKey" type="password" placeholder="AIza..." autocomplete="off">
+        <a href="https://aistudio.google.com/app/apikey" target="_blank">→ 무료 API 키 발급받기</a>
+      </div>
+      <div style="height:18px"></div>
       <div class="sec-t">학원 정보</div>
       <div class="meta-field"><label>시간표 제목</label><input id="metaTitle" type="text"></div>
       <div class="meta-field"><label>학원명</label><input id="metaAcademy" type="text"></div>
@@ -290,6 +323,87 @@ window.addEventListener('message',(e)=>{
 function triggerDownload(url,name){ const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); }
 $('btnPng').onclick=()=>{ $('dlStatus').textContent='이미지 생성 중…'; $('btnPng').disabled=true; $('previewFrame').contentWindow.postMessage({__cmd:'cap'},'*'); };
 $('btnHtml').onclick=()=>{ const blob=new Blob([buildHTML(false)],{type:'text/html'}); const url=URL.createObjectURL(blob); triggerDownload(url,'timetable_'+state.styleKey+'.html'); setTimeout(()=>URL.revokeObjectURL(url),1000); };
+
+/* ---------- PDF upload + AI auto-fill ---------- */
+function fillMetaInputs(){ $('metaTitle').value=state.meta.title||''; $('metaAcademy').value=state.meta.academy||''; $('metaPhone').value=state.meta.phone||''; $('metaWebsite').value=state.meta.website||''; }
+function setAnalyze(t){ const el=$('analyzeStatus'); if(el) el.textContent=t||''; }
+
+let pdfImages=[];
+let pdfjsReady=null;
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('load fail '+src)); document.head.appendChild(s); }); }
+async function ensurePdfjs(){
+  if(!pdfjsReady){ pdfjsReady=(async()=>{
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  })(); }
+  return pdfjsReady;
+}
+async function handlePdf(file){
+  try{
+    setAnalyze('PDF 읽는 중…'); await ensurePdfjs();
+    const buf=await file.arrayBuffer();
+    const pdf=await window.pdfjsLib.getDocument({data:buf}).promise;
+    pdfImages=[];
+    const prev=$('pdfPreview'); prev.innerHTML=''; prev.style.display='flex';
+    const n=Math.min(pdf.numPages,3);
+    for(let i=1;i<=n;i++){
+      const page=await pdf.getPage(i);
+      const vp=page.getViewport({scale:2});
+      const cv=document.createElement('canvas'); cv.width=vp.width; cv.height=vp.height;
+      await page.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+      const url=cv.toDataURL('image/jpeg',0.85);
+      pdfImages.push(url);
+      const img=document.createElement('img'); img.src=url; img.className='pdf-thumb'; prev.appendChild(img);
+    }
+    $('pdfActions').style.display='block';
+    setAnalyze(pdf.numPages+'페이지 로드됨. ‘AI로 분석’을 눌러 자동으로 채우세요'+(pdf.numPages>3?' (앞 3페이지 사용)':''));
+  }catch(err){ setAnalyze('PDF 읽기 실패'); alert('PDF를 읽지 못했습니다: '+err.message); }
+}
+
+const AI_SCHEMA={type:'OBJECT',properties:{title:{type:'STRING'},academy:{type:'STRING'},phone:{type:'STRING'},website:{type:'STRING'},data:{type:'ARRAY',items:{type:'OBJECT',properties:{school:{type:'STRING'},courses:{type:'ARRAY',items:{type:'OBJECT',properties:{subject:{type:'STRING'},teacher:{type:'STRING'},org:{type:'STRING'},course:{type:'STRING'},sessions:{type:'STRING'},day:{type:'STRING'},ap:{type:'STRING'},time:{type:'STRING'},start:{type:'STRING'},sci:{type:'BOOLEAN'},label:{type:'STRING'},clinic:{type:'STRING'}}}}}}}}};
+const AI_PROMPT='너는 학원 시간표 PDF/이미지를 분석해 JSON으로 구조화하는 도우미야. 이미지를 읽고 아래 규칙대로 채워줘.\n- 학교/학년별로 data 배열 항목(school)로 그룹핑.\n- 각 강좌: subject(과목), teacher(강사명), org(소속/출신, 없으면 ""), course(강좌명), sessions(회차 예 "6+1"), day(요일 한 글자 예 "토"), ap("am" 또는 "pm"), time("09:00~12:00" 24시간 형식), start(개강일 예 "8/29"), sci(과학/특별과목이면 true 아니면 false), label(마감/신설/특강/인기 중 표시된 것, 없으면 ""), clinic(클리닉·비고 있으면 아니면 "").\n- title(시간표 제목), academy(학원명), phone(전화번호), website(웹사이트)도 이미지에서 찾아 채워. 없으면 "".\n- 반드시 JSON만 출력.';
+
+function normCourse(c){ return {subject:c.subject||'',teacher:c.teacher||'',org:c.org||'',course:c.course||'',sessions:c.sessions||'',day:(c.day||'').slice(0,2),ap:(String(c.ap).toLowerCase()==='am'?'am':'pm'),time:c.time||'',start:c.start||'',sci:!!c.sci,label:(['마감','신설','특강','인기'].indexOf(c.label)>=0?c.label:''),clinic:c.clinic||''}; }
+function applyExtracted(o){
+  if(o.title) state.meta.title=o.title;
+  if(o.academy) state.meta.academy=o.academy;
+  if(o.phone) state.meta.phone=o.phone;
+  if(o.website) state.meta.website=o.website;
+  if(Array.isArray(o.data)&&o.data.length){ state.data=o.data.map(g=>({school:g.school||'',courses:(g.courses||[]).map(normCourse)})); }
+  fillMetaInputs(); buildEditor(); renderPreview();
+}
+async function analyzeWithAI(){
+  const key=($('aiKey').value||'').trim();
+  if(!key){ alert('먼저 Gemini API 키를 입력해주세요. (아래 ‘무료 API 키 발급받기’ 링크)'); $('aiKey').focus(); return; }
+  if(!pdfImages.length){ alert('먼저 PDF를 업로드해주세요.'); return; }
+  try{ localStorage.setItem('ttd_gemini_key',key); }catch(e){}
+  $('btnAnalyze').disabled=true; setAnalyze('AI가 분석 중… (몇 초 걸려요)');
+  try{
+    const parts=[{text:AI_PROMPT}];
+    pdfImages.forEach(u=>parts.push({inline_data:{mime_type:'image/jpeg',data:u.split(',')[1]}}));
+    const body={contents:[{parts:parts}],generationConfig:{responseMimeType:'application/json',responseSchema:AI_SCHEMA}};
+    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!res.ok){ const e=await res.text(); throw new Error('API '+res.status+' — '+e.slice(0,160)); }
+    const j=await res.json();
+    const txt=(((j.candidates||[])[0]||{}).content||{}).parts && j.candidates[0].content.parts[0].text;
+    if(!txt) throw new Error('빈 응답');
+    applyExtracted(JSON.parse(txt));
+    setAnalyze('완료 ✓ 자동으로 채웠습니다. 필요하면 수정하세요');
+  }catch(err){ setAnalyze('분석 실패'); alert('AI 분석 실패: '+err.message); }
+  $('btnAnalyze').disabled=false;
+}
+(function bindPdf(){
+  const drop=$('pdfDrop'), input=$('pdfInput');
+  if(drop&&input){
+    drop.onclick=()=>input.click();
+    input.onchange=e=>{ if(e.target.files[0]) handlePdf(e.target.files[0]); };
+    drop.ondragover=e=>{ e.preventDefault(); drop.classList.add('drag'); };
+    drop.ondragleave=()=>drop.classList.remove('drag');
+    drop.ondrop=e=>{ e.preventDefault(); drop.classList.remove('drag'); const f=[].slice.call(e.dataTransfer.files).find(x=>x.type==='application/pdf'); if(f) handlePdf(f); };
+  }
+  const btn=$('btnAnalyze'); if(btn) btn.onclick=analyzeWithAI;
+  try{ const savedKey=localStorage.getItem('ttd_gemini_key'); if(savedKey&&$('aiKey')) $('aiKey').value=savedKey; }catch(e){}
+})();
 
 /* ---------- Init ---------- */
 buildStyleList(); bindMeta(); buildEditor(); bindEditor();
