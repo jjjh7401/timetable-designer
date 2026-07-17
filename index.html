@@ -416,7 +416,8 @@ function applyExtracted(o){
 let apiKey=''; try{ apiKey=localStorage.getItem('ttd_gemini_key')||''; }catch(e){}
 function getKey(){ return (apiKey||'').trim(); }
 function saveKeyVal(k){ apiKey=(k||'').trim(); try{ localStorage.setItem('ttd_gemini_key',apiKey); }catch(e){} }
-const GEMINI_URL=k=>'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+encodeURIComponent(k);
+const GEMINI_MODEL='gemini-flash-latest';
+const GEMINI_URL=k=>'https://generativelanguage.googleapis.com/v1beta/models/'+GEMINI_MODEL+':generateContent?key='+encodeURIComponent(k);
 function setSettingsStatus(t,cls){ const el=$('settingsStatus'); if(!el)return; el.textContent=t||''; el.className='modal-status'+(cls?' '+cls:''); }
 function openSettings(){ const k=getKey(); if($('settingsKey')) $('settingsKey').value=k; setSettingsStatus(''); if($('savedBadge')) $('savedBadge').style.display=k?'block':'none'; $('settingsModal').style.display='flex'; }
 function closeSettings(){ $('settingsModal').style.display='none'; }
@@ -446,7 +447,7 @@ async function analyzeWithAI(){
     const parts=[{text:AI_PROMPT}];
     pdfImages.forEach(u=>parts.push({inline_data:{mime_type:'image/jpeg',data:u.split(',')[1]}}));
     const body={contents:[{parts:parts}],generationConfig:{responseMimeType:'application/json',responseSchema:AI_SCHEMA}};
-    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+encodeURIComponent(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const res=await fetch(GEMINI_URL(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(!res.ok){ const e=await res.text(); throw new Error('API '+res.status+' — '+e.slice(0,160)); }
     const j=await res.json();
     const txt=(((j.candidates||[])[0]||{}).content||{}).parts && j.candidates[0].content.parts[0].text;
