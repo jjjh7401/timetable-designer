@@ -64,6 +64,30 @@
   .preview-stage{position:relative;}
   #previewFrame{border:none;background:transparent;display:block;box-shadow:0 12px 40px rgba(0,0,0,.14);border-radius:8px;}
   .hint{font-size:12px;color:#9aa0aa;margin-top:10px;text-align:center;}
+  .ai-hint{font-size:12px;color:var(--mut);margin-top:10px;line-height:1.6;}
+  .link-btn{background:none;border:none;color:var(--acc);font-weight:700;cursor:pointer;font-size:12px;padding:0;text-decoration:underline;font-family:inherit;}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,18,28,.5);z-index:100;align-items:center;justify-content:center;}
+  .modal{width:460px;max-width:92vw;background:#fff;border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.3);overflow:hidden;}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--bd);}
+  .modal-head h3{font-size:17px;font-weight:800;}
+  .modal-close{background:none;border:none;font-size:18px;color:var(--mut);cursor:pointer;width:30px;height:30px;border-radius:8px;}
+  .modal-close:hover{background:#f2f3f5;}
+  .modal-body{padding:22px;}
+  .modal-sec-t{font-size:12px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
+  .modal-desc{font-size:13px;color:var(--mut);line-height:1.6;margin-bottom:14px;}
+  .modal-desc b{color:var(--ink);}
+  .key-row{display:flex;gap:8px;}
+  .key-row input{flex:1;font-size:14px;padding:11px 13px;border:1px solid var(--bd);border-radius:10px;font-family:inherit;letter-spacing:.5px;}
+  .key-row input:focus{outline:none;border-color:var(--acc);}
+  .ghost-btn{width:44px;border:1px solid var(--bd);background:#fff;border-radius:10px;cursor:pointer;font-size:16px;}
+  .ghost-btn:hover{background:#f2f3f5;}
+  .key-link{display:inline-block;font-size:12.5px;color:var(--acc);text-decoration:none;margin-top:10px;font-weight:600;}
+  .modal-status{font-size:13px;margin-top:14px;min-height:18px;line-height:1.5;color:var(--mut);}
+  .modal-status.ok{color:#0a7a45;font-weight:600;}
+  .modal-status.err{color:#dc2626;font-weight:600;}
+  .saved-badge{font-size:12.5px;color:#0a7a45;font-weight:600;margin-top:8px;}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;}
+  .modal-actions .btn{padding:11px 20px;font-size:14px;}
   .pdf-drop{border:2px dashed #c7c9f5;background:#f5f6ff;border-radius:12px;padding:20px;text-align:center;cursor:pointer;transition:.15s;margin-bottom:8px;}
   .pdf-drop:hover,.pdf-drop.drag{background:#eceefe;border-color:var(--acc);}
   .pdf-drop .pdf-ico{font-size:28px;}
@@ -89,6 +113,7 @@
     <span class="sub">PDF 강의정보 → 20종 디자인 시간표</span>
     <span class="sp"></span>
     <span class="status" id="dlStatus"></span>
+    <button class="btn" id="btnSettings">⚙ 설정</button>
     <button class="btn" id="btnHtml">HTML 저장</button>
     <button class="btn primary" id="btnPng">PNG 다운로드</button>
   </div>
@@ -108,11 +133,7 @@
       <div class="pdf-preview" id="pdfPreview" style="display:none"></div>
       <div id="pdfActions" style="display:none"><button class="btn-analyze" id="btnAnalyze">✨ AI로 분석해서 자동 채우기</button></div>
       <div class="analyze-status" id="analyzeStatus"></div>
-      <div class="ai-key">
-        <span class="ai-key-label">🔑 Gemini API 키 (최초 1회 · 브라우저에만 저장)</span>
-        <input id="aiKey" type="password" placeholder="AIza..." autocomplete="off">
-        <a href="https://aistudio.google.com/app/apikey" target="_blank">→ 무료 API 키 발급받기</a>
-      </div>
+      <div class="ai-hint">🔑 AI 분석을 사용하려면 <button class="link-btn" id="openSettings">⚙ 설정에서 API 키</button>를 입력하세요</div>
       <div style="height:18px"></div>
       <div class="sec-t">학원 정보</div>
       <div class="meta-field"><label>시간표 제목</label><input id="metaTitle" type="text"></div>
@@ -137,6 +158,26 @@
         <div class="preview-stage"><iframe id="previewFrame" scrolling="no"></iframe></div>
       </div>
       <div class="hint">실시간 미리보기 · 왼쪽에서 스타일을 바꾸고 가운데에서 강좌를 편집하세요</div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+      <div class="modal-head"><h3>⚙ 설정</h3><button class="modal-close" id="settingsClose">✕</button></div>
+      <div class="modal-body">
+        <div class="modal-sec-t">Gemini API 키</div>
+        <p class="modal-desc">PDF 자동 분석에 사용됩니다. 키는 <b>이 브라우저에만</b> 저장되며 외부 서버로 전송되지 않습니다.</p>
+        <div class="key-row">
+          <input id="settingsKey" type="password" placeholder="AIza..." autocomplete="off">
+          <button class="ghost-btn" id="toggleKey" title="표시/숨김">👁</button>
+        </div>
+        <a class="key-link" href="https://aistudio.google.com/app/apikey" target="_blank">→ 무료 API 키 발급받기 (Google AI Studio)</a>
+        <div class="modal-status" id="settingsStatus"></div>
+        <div class="saved-badge" id="savedBadge" style="display:none">✓ 저장된 키가 있습니다</div>
+        <div class="modal-actions">
+          <button class="btn" id="testKey">🔌 연결 테스트</button>
+          <button class="btn primary" id="saveKey">저장</button>
+        </div>
+      </div>
     </div>
   </div>
   <script>
@@ -372,11 +413,34 @@ function applyExtracted(o){
   if(Array.isArray(o.data)&&o.data.length){ state.data=o.data.map(g=>({school:g.school||'',courses:(g.courses||[]).map(normCourse)})); }
   fillMetaInputs(); buildEditor(); renderPreview();
 }
+let apiKey=''; try{ apiKey=localStorage.getItem('ttd_gemini_key')||''; }catch(e){}
+function getKey(){ return (apiKey||'').trim(); }
+function saveKeyVal(k){ apiKey=(k||'').trim(); try{ localStorage.setItem('ttd_gemini_key',apiKey); }catch(e){} }
+const GEMINI_URL=k=>'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+encodeURIComponent(k);
+function setSettingsStatus(t,cls){ const el=$('settingsStatus'); if(!el)return; el.textContent=t||''; el.className='modal-status'+(cls?' '+cls:''); }
+function openSettings(){ const k=getKey(); if($('settingsKey')) $('settingsKey').value=k; setSettingsStatus(''); if($('savedBadge')) $('savedBadge').style.display=k?'block':'none'; $('settingsModal').style.display='flex'; }
+function closeSettings(){ $('settingsModal').style.display='none'; }
+async function testKey(){
+  const k=($('settingsKey').value||'').trim();
+  if(!k){ setSettingsStatus('키를 입력해주세요','err'); return; }
+  $('testKey').disabled=true; setSettingsStatus('연결 테스트 중…');
+  try{
+    const res=await fetch(GEMINI_URL(k),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:'ping'}]}]})});
+    if(res.ok){ setSettingsStatus('✓ 연결 성공! 유효한 키입니다. ‘저장’을 눌러 적용하세요','ok'); }
+    else { const e=await res.text(); setSettingsStatus('✕ 실패 ('+res.status+') — '+e.slice(0,120),'err'); }
+  }catch(err){ setSettingsStatus('✕ 네트워크 오류: '+err.message,'err'); }
+  $('testKey').disabled=false;
+}
+function saveKeyFromSettings(){
+  const k=($('settingsKey').value||'').trim(); saveKeyVal(k);
+  if($('savedBadge')) $('savedBadge').style.display=k?'block':'none';
+  setSettingsStatus(k?'✓ 저장되었습니다':'키가 비워졌습니다',k?'ok':'');
+}
 async function analyzeWithAI(){
-  const key=($('aiKey').value||'').trim();
-  if(!key){ alert('먼저 Gemini API 키를 입력해주세요. (아래 ‘무료 API 키 발급받기’ 링크)'); $('aiKey').focus(); return; }
+  const key=getKey();
+  if(!key){ alert('먼저 설정(⚙)에서 Gemini API 키를 입력·저장해주세요.'); openSettings(); return; }
   if(!pdfImages.length){ alert('먼저 PDF를 업로드해주세요.'); return; }
-  try{ localStorage.setItem('ttd_gemini_key',key); }catch(e){}
+  saveKeyVal(key);
   $('btnAnalyze').disabled=true; setAnalyze('AI가 분석 중… (몇 초 걸려요)');
   try{
     const parts=[{text:AI_PROMPT}];
@@ -402,7 +466,13 @@ async function analyzeWithAI(){
     drop.ondrop=e=>{ e.preventDefault(); drop.classList.remove('drag'); const f=[].slice.call(e.dataTransfer.files).find(x=>x.type==='application/pdf'); if(f) handlePdf(f); };
   }
   const btn=$('btnAnalyze'); if(btn) btn.onclick=analyzeWithAI;
-  try{ const savedKey=localStorage.getItem('ttd_gemini_key'); if(savedKey&&$('aiKey')) $('aiKey').value=savedKey; }catch(e){}
+  if($('openSettings')) $('openSettings').onclick=openSettings;
+  if($('btnSettings')) $('btnSettings').onclick=openSettings;
+  if($('settingsClose')) $('settingsClose').onclick=closeSettings;
+  if($('testKey')) $('testKey').onclick=testKey;
+  if($('saveKey')) $('saveKey').onclick=saveKeyFromSettings;
+  if($('toggleKey')) $('toggleKey').onclick=function(){ var i=$('settingsKey'); i.type=(i.type==='password'?'text':'password'); };
+  if($('settingsModal')) $('settingsModal').onclick=function(e){ if(e.target.id==='settingsModal') closeSettings(); };
 })();
 
 /* ---------- Init ---------- */
