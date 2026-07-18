@@ -25,6 +25,7 @@
   .col.editor{border-right:1px solid var(--bd);background:#fbfbfc;padding:18px 18px 60px;}
   .col.preview{background:#eceef1;padding:24px;display:flex;flex-direction:column;align-items:center;}
   .sec-t{font-size:11.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;margin:6px 4px 12px;}
+  .sec-note{font-weight:500;text-transform:none;letter-spacing:0;color:#a9afba;margin-left:4px;}
   .style-cat{font-size:11px;font-weight:700;color:#9aa0aa;margin:16px 4px 8px;letter-spacing:.4px;}
   .style-cat:first-child{margin-top:0;}
   .style-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;cursor:pointer;font-size:13.5px;font-weight:600;color:#374151;transition:.12s;border:1px solid transparent;}
@@ -137,8 +138,11 @@
       <div class="analyze-status" id="analyzeStatus"></div>
       <div class="ai-hint">🔑 AI 분석을 사용하려면 <button class="link-btn" id="openSettings">⚙ 설정에서 API 키</button>를 입력하세요</div>
       <div style="height:18px"></div>
-      <div class="sec-t">학원 정보</div>
+      <div class="sec-t">헤드 타이틀 <span class="sec-note">PDF에 없는 헤더 문구 직접 작성</span></div>
       <div class="meta-field"><label>시간표 제목</label><input id="metaTitle" type="text"></div>
+      <div class="meta-field"><label>부제목 (대상·과목 등)</label><input id="metaSub" type="text"></div>
+      <div class="meta-field"><label>강조 문구 (개강 안내 등)</label><input id="metaTag" type="text"></div>
+      <div class="sec-t" style="margin-top:18px">학원 정보</div>
       <div class="meta-field"><label>학원명</label><input id="metaAcademy" type="text"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="meta-field"><label>전화번호</label><input id="metaPhone" type="text"></div>
@@ -219,12 +223,12 @@ const STYLE_META = {
   sidae:{n:'시대인재',d:'콘텐츠 강조 표',c:'학원',s:'#c9a24a'},
   mimac:{n:'대성마이맥',d:'레드 카드 그리드',c:'학원',s:'#e2251b'},
 };
-const STYLE_ORDER = ['apple','airbnb','vercel','claude','notion','linear','stripe','figma','cursor','coinbase','minimax','cal','swiss','sage','vintage','mono','terracotta','dugak','sidae','mimac'];
+const STYLE_ORDER = ['dugak','sidae','mimac','swiss','sage','vintage','mono','terracotta','apple','airbnb','vercel','claude','notion','linear','stripe','figma','cursor','coinbase','minimax','cal'];
 const LABELS = ['','인기','신설','특강','마감'];
 
 const state = {
-  styleKey: 'notion',
-  meta: { title:'2025 내신 대비반 시간표', academy:'목동예섬', phone:'02-6212-8822', website:'www.yesum.co.kr' },
+  styleKey: 'dugak',
+  meta: { title:'2025 내신 대비반 시간표', sub:'고1 통합 · 국어 · 영어 · 통합과학 · 학교별 맞춤 커리큘럼', tag:'8월 개강 · 학교별 반 편성', academy:'목동예섬', phone:'02-6212-8822', website:'www.yesum.co.kr' },
   data: JSON.parse(JSON.stringify(DEFAULT_DATA)),
 };
 
@@ -249,7 +253,7 @@ function buildStyleList(){
 
 /* ---------- Meta ---------- */
 function bindMeta(){
-  const map={metaTitle:'title',metaAcademy:'academy',metaPhone:'phone',metaWebsite:'website'};
+  const map={metaTitle:'title',metaSub:'sub',metaTag:'tag',metaAcademy:'academy',metaPhone:'phone',metaWebsite:'website'};
   Object.keys(map).forEach(id=>{
     const el=$(id); el.value=state.meta[map[id]];
     el.addEventListener('input',()=>{ state.meta[map[id]]=el.value; schedulePreview(); });
@@ -338,16 +342,26 @@ window.addEventListener('message',function(e){
 });
 <\/script>`;
 
+const HEADER_SCRIPT = `<script>(function(){try{
+if(typeof META==='undefined')return;
+var sheet=document.querySelector('.sheet')||document.body;
+var h1=sheet.querySelector('h1');
+var hdr=h1?(h1.closest('.head,.hero,.top,.sidebar,header,.inner')||h1.parentElement):sheet;
+if(META.title&&h1)h1.textContent=META.title;
+var lv=[].slice.call(hdr.querySelectorAll('*')).filter(function(e){return e.children.length===0&&e.textContent.trim();});
+if(META.sub){var se=lv.filter(function(e){return e!==h1&&/통합|국어|커리큘럼|과목|대비반|맞춤/.test(e.textContent);})[0];if(se)se.textContent=META.sub;}
+if(META.tag){var te=lv.filter(function(e){return /개강|편성|모집|접수/.test(e.textContent);})[0];if(te)te.textContent=META.tag;}
+}catch(e){}})();<\/script>`;
 function buildHTML(withCapture){
   let html = TEMPLATES[state.styleKey];
-  const inj = 'const data = ' + JSON.stringify(state.data) + ';';
-  html = html.replace('/*DATA_INJECTION_POINT*/', inj);
   const m=state.meta;
+  const inj = 'const data = ' + JSON.stringify(state.data) + '; const META = ' + JSON.stringify({title:m.title,sub:m.sub,tag:m.tag,academy:m.academy}) + ';';
+  html = html.replace('/*DATA_INJECTION_POINT*/', inj);
   if(m.website){ html=html.split('www.yesum.co.kr').join(m.website).split('yesum.co.kr').join(m.website); }
   if(m.academy){ html=html.split('목동예섬').join(m.academy); }
   if(m.phone){ html=html.split('02-6212-8822').join(m.phone); }
   if(m.title){ html=html.split('2025 내신 대비반 시간표').join(m.title); }
-  if(withCapture){ html=html.replace('</body>', CAPTURE_SCRIPT+'</body>'); }
+  html = html.replace('</body>', HEADER_SCRIPT + (withCapture?CAPTURE_SCRIPT:'') + '</body>');
   return html;
 }
 function renderPreview(){
@@ -377,7 +391,7 @@ $('btnPng').onclick=()=>{ $('dlStatus').textContent='이미지 생성 중…'; $
 $('btnHtml').onclick=()=>{ const blob=new Blob([buildHTML(false)],{type:'text/html'}); const url=URL.createObjectURL(blob); triggerDownload(url,'timetable_'+state.styleKey+'.html'); setTimeout(()=>URL.revokeObjectURL(url),1000); };
 
 /* ---------- PDF upload + AI auto-fill ---------- */
-function fillMetaInputs(){ $('metaTitle').value=state.meta.title||''; $('metaAcademy').value=state.meta.academy||''; $('metaPhone').value=state.meta.phone||''; $('metaWebsite').value=state.meta.website||''; }
+function fillMetaInputs(){ $('metaTitle').value=state.meta.title||''; if($('metaSub'))$('metaSub').value=state.meta.sub||''; if($('metaTag'))$('metaTag').value=state.meta.tag||''; $('metaAcademy').value=state.meta.academy||''; $('metaPhone').value=state.meta.phone||''; $('metaWebsite').value=state.meta.website||''; }
 function setAnalyze(t){ const el=$('analyzeStatus'); if(el) el.textContent=t||''; }
 
 let pdfImages=[];
