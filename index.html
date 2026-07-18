@@ -52,6 +52,8 @@
   .fld label{font-size:10.5px;font-weight:600;color:#9aa0aa;padding-left:2px;}
   .fld input,.fld select{font-size:12.5px;padding:6px 8px;border:1px solid var(--bd);border-radius:7px;background:#fff;font-family:inherit;color:var(--ink);}
   .fld input:focus,.fld select:focus{outline:none;border-color:var(--acc);}
+  .fld textarea{font-size:12.5px;padding:6px 8px;border:1px solid var(--bd);border-radius:7px;background:#fff;font-family:inherit;color:var(--ink);resize:vertical;line-height:1.5;}
+  .fld textarea:focus{outline:none;border-color:var(--acc);}
   .course-foot{display:flex;align-items:center;justify-content:space-between;margin-top:9px;}
   .chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mut);cursor:pointer;}
   .del-course{font-size:11.5px;color:#dc2626;cursor:pointer;font-weight:600;background:none;border:none;}
@@ -156,6 +158,7 @@
         <button data-dt="group" class="on">그룹표</button>
         <button data-dt="weekly">주간 격자</button>
         <button data-dt="sessions">회차 계획서</button>
+        <button data-dt="catalog">상세 강좌표</button>
       </div>
       <div class="sec-t" style="margin-top:16px" id="dataSecT">강좌 데이터</div>
       <div id="editor"></div>
@@ -343,6 +346,99 @@ td.note{width:150px;font-size:13px;color:#8a968f;}
 </body></html>`;
 
 
+TEMPLATES.catalog_basic = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>Catalog</title><style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Apple SD Gothic Neo','Pretendard','Noto Sans KR',sans-serif;background:#eef0f4;padding:40px 0;color:#1a1d24;-webkit-font-smoothing:antialiased;}
+.sheet{width:1120px;margin:0 auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 12px 40px rgba(20,28,50,.12);}
+.head{background:linear-gradient(135deg,#1b2340,#2c3a63);color:#fff;padding:34px 40px 30px;}
+.head .brand{font-size:15px;letter-spacing:3px;color:#9fb0d6;font-weight:700;}
+.head h1{font-size:34px;font-weight:800;margin-top:8px;letter-spacing:-1px;}
+.head .sub{margin-top:10px;font-size:16px;color:#c4cfe6;font-weight:500;}
+.head .tag{display:inline-block;margin-top:16px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#eaf0ff;padding:6px 16px;border-radius:999px;font-size:14px;font-weight:600;}
+.page{padding:26px 32px 8px;}
+.subj-h{font-size:26px;font-weight:800;color:#1b2340;letter-spacing:-.5px;margin-bottom:12px;}
+table{width:100%;border-collapse:collapse;table-layout:fixed;}
+col.c1{width:88px}col.c2{width:120px}col.c3{width:auto}col.c4{width:150px}col.c5{width:84px}
+thead th{background:#37415e;color:#eef1f8;font-size:14px;font-weight:700;padding:11px 8px;text-align:center;letter-spacing:.5px;border:1px solid #2c3550;}
+tbody td{border:1px solid #dfe3ee;vertical-align:top;font-size:13.5px;}
+td.subcell{background:#f4f6fb;text-align:center;font-weight:800;font-size:16px;color:#1b2340;padding:16px 6px;vertical-align:middle;}
+td.tch{text-align:center;padding:16px 8px;vertical-align:top;}
+td.tch b{display:block;font-size:16.5px;font-weight:800;color:#151922;}
+td.tch span{display:block;font-size:11.5px;color:#8b93a7;margin-top:5px;line-height:1.5;}
+td.cont{padding:14px 18px 16px;}
+.ct{font-size:15.5px;font-weight:800;color:#151922;}
+.cst{font-size:14px;font-weight:700;color:#2c3a63;margin-top:2px;}
+.sec-h{font-size:13.5px;font-weight:800;color:#2c3a63;margin:13px 0 4px;}
+.it{font-size:13px;color:#333a46;line-height:1.62;padding-left:8px;}
+.it.sub{font-weight:800;color:#151922;padding-left:4px;margin-top:5px;}
+.it.note{font-size:12px;color:#8b93a7;margin-top:3px;}
+td.tm{text-align:center;vertical-align:middle;padding:12px 6px;}
+td.tm b{display:block;font-size:15px;font-weight:800;color:#151922;}
+td.tm span{display:block;font-size:13.5px;font-weight:700;color:#2c3a63;margin-top:3px;}
+td.st{text-align:center;vertical-align:middle;font-size:14.5px;font-weight:800;color:#c0392b;white-space:pre-line;}
+.foot{margin-top:18px;padding:20px 40px;background:#f4f6fb;display:flex;justify-content:space-between;align-items:center;}
+.foot .name{font-size:17px;font-weight:800;color:#1b2340;}
+.foot .info{font-size:14px;color:#5b6480;font-weight:500;}
+</style></head><body>
+<div class="sheet">
+  <div class="head">
+    <div class="brand">COURSE CATALOG</div>
+    <h1>2025 내신 대비반 시간표</h1>
+    <div class="sub">과목별 상세 강좌 안내</div>
+    <div class="tag">수업 특징 · 구성 · 콘텐츠 · 관리</div>
+  </div>
+  <div id="cat"></div>
+  <div class="foot"><div class="name">목동예섬</div><div class="info">문의전화 02-6212-8822 &nbsp;·&nbsp; www.yesum.co.kr</div></div>
+</div>
+<script>
+/*DATA_INJECTION_POINT*/
+(function(){
+  var pages=(data&&data.pages)||[];
+  var root=document.getElementById('cat');
+  pages.forEach(function(pg){
+    var sec=document.createElement('div'); sec.className='page';
+    var h='<div class="subj-h">'+(pg.subject||'')+'</div>';
+    h+='<table><colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"></colgroup>';
+    h+='<thead><tr><th>과목</th><th>강사</th><th>수업 내용</th><th>시간/요일</th><th>개강일</th></tr></thead><tbody>';
+    (pg.courses||[]).forEach(function(c){
+      var sch=(c.schedules&&c.schedules.length)?c.schedules:[{day:'',time:'',start:''}];
+      var n=sch.length;
+      var content='<div class="ct">'+(c.title||'')+'</div>';
+      if(c.subtitle) content+='<div class="cst">'+c.subtitle+'</div>';
+      (c.sections||[]).forEach(function(s){
+        if(s.heading) content+='<div class="sec-h">○ '+s.heading+'</div>';
+        (s.items||[]).forEach(function(it){
+          var cls='it', txt=it;
+          if(it.indexOf('■')===0){cls='it sub';}
+          else if(it.indexOf('※')===0){cls='it note';}
+          else txt='- '+it;
+          content+='<div class="'+cls+'">'+txt+'</div>';
+        });
+      });
+      sch.forEach(function(s,i){
+        var tr='<tr>';
+        if(i===0){
+          tr+='<td class="subcell" rowspan="'+n+'">'+(c.subjectCell||pg.subject||'')+'</td>';
+          tr+='<td class="tch" rowspan="'+n+'"><b>'+(c.teacher||'')+'</b>'+(c.org?'<span>'+String(c.org).split('\\n').join('<br>')+'</span>':'')+'</td>';
+          tr+='<td class="cont" rowspan="'+n+'">'+content+'</td>';
+        }
+        tr+='<td class="tm"><b>'+(s.time||'')+'</b><span>'+(s.day||'')+'</span></td>';
+        tr+='<td class="st">'+(s.start||'')+'</td></tr>';
+        h+=tr;
+      });
+    });
+    h+='</tbody></table>';
+    sec.innerHTML=h; root.appendChild(sec);
+  });
+  if(typeof META!=='undefined'){
+    if(META.sub){var s=document.querySelector('.head .sub');if(s)s.textContent=META.sub;}
+    if(META.tag){var t=document.querySelector('.head .tag');if(t)t.textContent=META.tag;}
+  }
+})();
+<\/script>
+</body></html>`;
+
+
 const STYLE_META = {
   apple:{n:'Apple',d:'여백형 스펙시트',c:'디자인 시스템',s:'#0071e3'},
   airbnb:{n:'Airbnb',d:'리스팅 카드 그리드',c:'디자인 시스템',s:'#ff385c'},
@@ -366,9 +462,10 @@ const STYLE_META = {
   mimac:{n:'대성마이맥',d:'레드 카드 그리드',c:'학원',s:'#e2251b'},
   weekly_basic:{n:'주간 격자 · 기본',d:'요일별 수업 보드',c:'기본 레이아웃',s:'#4f5fd6'},
   sessions_basic:{n:'회차 계획서 · 기본',d:'회차별 커리큘럼 표',c:'기본 레이아웃',s:'#2c7a5b'},
+  catalog_basic:{n:'상세 강좌표 · 기본',d:'과목별 상세 강좌 안내',c:'기본 레이아웃',s:'#37415e'},
 };
 const STYLE_ORDER = ['dugak','sidae','mimac','swiss','sage','vintage','mono','terracotta','apple','airbnb','vercel','claude','notion','linear','stripe','figma','cursor','coinbase','minimax','cal'];
-const STYLES_BY_TYPE = { group: STYLE_ORDER, weekly: ['weekly_basic'], sessions: ['sessions_basic'] };
+const STYLES_BY_TYPE = { group: STYLE_ORDER, weekly: ['weekly_basic'], sessions: ['sessions_basic'], catalog: ['catalog_basic'] };
 const LABELS = ['','인기','신설','특강','마감'];
 
 const state = {
@@ -385,6 +482,17 @@ const state = {
     {no:'1',date:'8/22',topic:'오리엔테이션 · 내신 범위 분석',content:'',note:''},
     {no:'2',date:'8/29',topic:'핵심 작품 정리',content:'',note:''}
   ] },
+  catalog: { pages: [
+    { subject:'국어', courses: [
+      { subjectCell:'국어', teacher:'강주하', org:'연세대 국문과졸\n강남대성',
+        title:'수능 국어 정규반 시즌4 (6주)', subtitle:': 9평 대비 - 이감 실전 모의고사반',
+        sections:[
+          {heading:'수업 특징', items:['선배들이 극찬한, 점수를 확실하게 올리는 수업','총 3단계 실전학습 [지문 이해 -> 문항 해석 -> 선택지 판단]']},
+          {heading:'콘텐츠', items:['매주 1권 강주하T 주간지','2026 시즌4 이감 콘텐츠 모의고사 + 간쓸개 (EBS 연계 대비)']}
+        ],
+        schedules:[{time:'am8:40~12:40',day:'토요일',start:'7/11'},{time:'pm6:00~10:00',day:'수요일',start:'7/15'}] }
+    ] }
+  ] },
 };
 function ensureStyleForType(){
   const list=STYLES_BY_TYPE[state.docType]||STYLE_ORDER;
@@ -398,9 +506,13 @@ function ensureStyleForType(){
 function syncDocTypeUI(){
   const seg=document.getElementById('docTypeSeg');
   if(seg) [].forEach.call(seg.querySelectorAll('button'),b=>b.classList.toggle('on',b.dataset.dt===state.docType));
-  const titles={group:'강좌 데이터',weekly:'주간 수업 데이터',sessions:'회차별 계획 데이터'};
+  const titles={group:'강좌 데이터',weekly:'주간 수업 데이터',sessions:'회차별 계획 데이터',catalog:'과목별 상세 강좌 데이터'};
   const st=document.getElementById('dataSecT'); if(st) st.textContent=titles[state.docType];
-  const asb=document.getElementById('addSchool'); if(asb) asb.style.display=(state.docType==='group')?'':'none';
+  const asb=document.getElementById('addSchool');
+  if(asb){
+    asb.style.display=(state.docType==='group'||state.docType==='catalog')?'':'none';
+    asb.textContent=(state.docType==='catalog')?'＋ 과목 페이지 추가':'＋ 학교 / 그룹 추가';
+  }
 }
 
 const $ = (id)=>document.getElementById(id);
@@ -442,7 +554,62 @@ function fld(label, si, ci, f, val, opts){
 function buildEditor(){
   if(state.docType==='weekly') return buildWeeklyEditor();
   if(state.docType==='sessions') return buildSessionsEditor();
+  if(state.docType==='catalog') return buildCatalogEditor();
   buildGroupEditor();
+}
+function escT(v){ return String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function tfld(label,attrs,val,rows){
+  const at=Object.keys(attrs).map(k=>`data-${k}="${attrs[k]}"`).join(' ');
+  return `<div class="fld"><label>${label}</label><textarea ${at} rows="${rows||3}">${escT(val)}</textarea></div>`;
+}
+function buildCatalogEditor(){
+  const wrap=$('editor'); wrap.innerHTML='';
+  state.catalog.pages.forEach((pg,cp)=>{
+    const card=document.createElement('div'); card.className='school-card';
+    let body='';
+    pg.courses.forEach((c,cc)=>{
+      let schRows='';
+      (c.schedules||[]).forEach((s,ch)=>{
+        schRows+=`<div class="course-grid" style="grid-template-columns:1.2fr 1fr .8fr auto;margin-bottom:4px">
+          ${gfld('시간',{cp,cc,ch,f:'time'},s.time)}
+          ${gfld('요일',{cp,cc,ch,f:'day'},s.day)}
+          ${gfld('개강일',{cp,cc,ch,f:'start'},s.start)}
+          <button class="del-course" data-act="delsch" data-cp="${cp}" data-cc="${cc}" data-ch="${ch}" style="align-self:end;padding-bottom:8px">✕</button>
+        </div>`;
+      });
+      let secRows='';
+      (c.sections||[]).forEach((s,cs)=>{
+        secRows+=`<div style="border:1px solid #eceef1;border-radius:8px;padding:8px;margin-bottom:6px;background:#fff">
+          <div class="course-grid" style="grid-template-columns:1fr auto">
+            ${gfld('섹션 제목 (예: 수업 특징)',{cp,cc,cs,f:'heading'},s.heading)}
+            <button class="del-course" data-act="delsec" data-cp="${cp}" data-cc="${cc}" data-cs="${cs}" style="align-self:end;padding-bottom:8px">✕</button>
+          </div>
+          ${tfld('항목 (한 줄에 하나씩 · ■소제목 ※참고 그대로)',{cp,cc,cs,f:'items'},(s.items||[]).join('\n'),4)}
+        </div>`;
+      });
+      body+=`<div class="course-card">
+        <div class="course-grid">
+          ${gfld('과목 표기',{cp,cc,f:'subjectCell'},c.subjectCell)}
+          ${gfld('강사',{cp,cc,f:'teacher'},c.teacher)}
+          <div class="full">${tfld('소속/출신 (여러 줄 가능)',{cp,cc,f:'org'},c.org,2)}</div>
+          <div class="full">${gfld('강좌명',{cp,cc,f:'title'},c.title)}</div>
+          <div class="full">${gfld('부제 (선택)',{cp,cc,f:'subtitle'},c.subtitle)}</div>
+        </div>
+        <div class="fld" style="margin-top:8px"><label>시간/요일/개강일 (복수 가능)</label></div>
+        ${schRows}
+        <button class="add-btn" data-act="addsch" data-cp="${cp}" data-cc="${cc}" style="margin-bottom:8px">＋ 시간 추가</button>
+        <div class="fld"><label>수업 내용 섹션</label></div>
+        ${secRows}
+        <button class="add-btn" data-act="addsec" data-cp="${cp}" data-cc="${cc}">＋ 섹션 추가</button>
+        <div class="course-foot"><span></span><button class="del-course" data-act="delcc" data-cp="${cp}" data-cc="${cc}">✕ 강좌 삭제</button></div>
+      </div>`;
+    });
+    card.innerHTML=`<div class="school-head"><input data-cp="${cp}" data-f="subject" value="${(pg.subject||'').replace(/"/g,'&quot;')}">
+        <button class="icon-btn" data-act="delpg" data-cp="${cp}" title="과목 페이지 삭제">🗑</button></div>
+      ${body}
+      <button class="add-btn" data-act="addcc" data-cp="${cp}">＋ 강좌 추가</button>`;
+    wrap.appendChild(card);
+  });
 }
 function gfld(label,attrs,val,opts){
   const at=Object.keys(attrs).map(k=>`data-${k}="${attrs[k]}"`).join(' ');
@@ -544,6 +711,21 @@ function bindEditor(){
       if(t.dataset.ki===undefined||!t.dataset.f) return;
       state.sessions.items[+t.dataset.ki][t.dataset.f]=t.value; schedulePreview(); return;
     }
+    if(state.docType==='catalog'){
+      const cp=t.dataset.cp, f=t.dataset.f;
+      if(cp===undefined||!f) return;
+      const pg=state.catalog.pages[+cp]; if(!pg) return;
+      if(f==='subject'){ pg.subject=t.value; schedulePreview(); return; }
+      const c=pg.courses[+t.dataset.cc]; if(!c) return;
+      if(t.dataset.ch!==undefined){ c.schedules[+t.dataset.ch][f]=t.value; }
+      else if(t.dataset.cs!==undefined){
+        const s=c.sections[+t.dataset.cs];
+        if(f==='items') s.items=t.value.split('\n').filter(x=>x.trim()!=='');
+        else s[f]=t.value;
+      }
+      else c[f]=t.value;
+      schedulePreview(); return;
+    }
     const si=t.dataset.si, ci=t.dataset.ci, f=t.dataset.f;
     if(si===undefined) return;
     if(f==='school'){ state.data[si].school=t.value; schedulePreview(); return; }
@@ -561,13 +743,24 @@ function bindEditor(){
     else if(act==='delw') state.weekly.entries.splice(+b.dataset.wi,1);
     else if(act==='addk') state.sessions.items.push({no:String(state.sessions.items.length+1),date:'',topic:'새 회차',content:'',note:''});
     else if(act==='delk') state.sessions.items.splice(+b.dataset.ki,1);
+    else if(act==='addcc') state.catalog.pages[+b.dataset.cp].courses.push({subjectCell:'',teacher:'',org:'',title:'새 강좌',subtitle:'',sections:[{heading:'수업 특징',items:[]}],schedules:[{time:'pm6:00~10:00',day:'토요일',start:''}]});
+    else if(act==='delcc') state.catalog.pages[+b.dataset.cp].courses.splice(+b.dataset.cc,1);
+    else if(act==='addsch') state.catalog.pages[+b.dataset.cp].courses[+b.dataset.cc].schedules.push({time:'',day:'',start:''});
+    else if(act==='delsch') state.catalog.pages[+b.dataset.cp].courses[+b.dataset.cc].schedules.splice(+b.dataset.ch,1);
+    else if(act==='addsec') state.catalog.pages[+b.dataset.cp].courses[+b.dataset.cc].sections.push({heading:'',items:[]});
+    else if(act==='delsec') state.catalog.pages[+b.dataset.cp].courses[+b.dataset.cc].sections.splice(+b.dataset.cs,1);
+    else if(act==='delpg') state.catalog.pages.splice(+b.dataset.cp,1);
     else if(act==='addc') state.data[si].courses.push({subject:'국어',teacher:'',org:'',course:'새 강좌',sessions:'6+1',day:'토',ap:'pm',time:'14:00~17:00',start:'8/1',sci:false,label:'',extra:''});
     else if(act==='delc') state.data[si].courses.splice(ci,1);
     else if(act==='dels') state.data.splice(si,1);
     buildEditor(); renderPreview();
   });
 }
-$('addSchool').onclick=()=>{ state.data.push({school:'새 학교',courses:[{subject:'국어',teacher:'',org:'',course:'새 강좌',sessions:'6+1',day:'토',ap:'pm',time:'14:00~17:00',start:'8/1',sci:false,label:'',extra:''}]}); buildEditor(); renderPreview(); };
+$('addSchool').onclick=()=>{
+  if(state.docType==='catalog'){ state.catalog.pages.push({subject:'새 과목',courses:[]}); }
+  else state.data.push({school:'새 학교',courses:[{subject:'국어',teacher:'',org:'',course:'새 강좌',sessions:'6+1',day:'토',ap:'pm',time:'14:00~17:00',start:'8/1',sci:false,label:'',extra:''}]});
+  buildEditor(); renderPreview();
+};
 
 /* ---------- Preview ---------- */
 const CAPTURE_SCRIPT = `
@@ -602,6 +795,7 @@ function buildHTML(withCapture){
   let payload=state.data;
   if(state.docType==='weekly') payload={entries:state.weekly.entries};
   else if(state.docType==='sessions') payload={info:state.sessions.info,items:state.sessions.items};
+  else if(state.docType==='catalog') payload={pages:state.catalog.pages};
   const inj = 'const data = ' + JSON.stringify(payload) + '; const META = ' + JSON.stringify({title:m.title,sub:m.sub,tag:m.tag,academy:m.academy}) + ';';
   html = html.replace('/*DATA_INJECTION_POINT*/', inj);
   if(m.website){ html=html.split('www.yesum.co.kr').join('@@W@@').split('yesum.co.kr').join(m.website).split('@@W@@').join(m.website); }
@@ -674,12 +868,17 @@ async function handlePdf(file){
   }catch(err){ setAnalyze('PDF 읽기 실패'); alert('PDF를 읽지 못했습니다: '+err.message); }
 }
 
-const AI_SCHEMA={type:'OBJECT',properties:{title:{type:'STRING'},academy:{type:'STRING'},phone:{type:'STRING'},website:{type:'STRING'},docType:{type:'STRING'},data:{type:'ARRAY',items:{type:'OBJECT',properties:{school:{type:'STRING'},courses:{type:'ARRAY',items:{type:'OBJECT',properties:{subject:{type:'STRING'},teacher:{type:'STRING'},org:{type:'STRING'},course:{type:'STRING'},sessions:{type:'STRING'},day:{type:'STRING'},ap:{type:'STRING'},time:{type:'STRING'},start:{type:'STRING'},sci:{type:'BOOLEAN'},label:{type:'STRING'},clinic:{type:'STRING'},extra:{type:'STRING'}}}}}}},weekly:{type:'ARRAY',items:{type:'OBJECT',properties:{day:{type:'STRING'},start:{type:'STRING'},end:{type:'STRING'},subject:{type:'STRING'},teacher:{type:'STRING'},room:{type:'STRING'},note:{type:'STRING'}}}},sessionsPlan:{type:'OBJECT',properties:{course:{type:'STRING'},teacher:{type:'STRING'},target:{type:'STRING'},period:{type:'STRING'},items:{type:'ARRAY',items:{type:'OBJECT',properties:{no:{type:'STRING'},date:{type:'STRING'},topic:{type:'STRING'},content:{type:'STRING'},note:{type:'STRING'}}}}}}}};
-const AI_PROMPT='너는 학원 시간표/강의계획서 PDF·이미지를 분석해 JSON으로 구조화하는 도우미야. 이미지를 읽고 아래 규칙대로 채워줘.\n[1단계: 문서 유형 판별 → docType]\n- "group": 학교/학년/반 등 그룹별로 강좌 목록이 표로 정리된 형태.\n- "weekly": 요일(월~일)과 시간 격자에 수업을 배치한 주간 시간표 형태.\n- "sessions": 1회차, 2회차처럼 회차별 주제/내용이 나열된 강의 계획서 형태.\n가장 가까운 유형 하나를 docType에 넣고, 그 유형의 데이터만 채워. 나머지 유형 필드는 빈 배열/빈 값으로 둬.\n[docType=group → data]\n- 학교/학년별로 data 배열 항목(school)로 그룹핑.\n- 각 강좌: subject(과목), teacher(강사명), org(소속/출신, 없으면 ""), course(강좌명), sessions(회차 예 "6+1"), day(요일 한 글자 예 "토"), ap("am" 또는 "pm"), time("09:00~12:00" 24시간 형식), start(개강일 예 "8/29"), sci(과학/특별과목이면 true 아니면 false), label(마감/신설/특강/인기 중 표시된 것, 없으면 ""), clinic(클리닉·비고 있으면 아니면 ""), extra(수강료·강의실 등 그 외 정보를 "키: 값" 형태로, 없으면 "").\n[docType=weekly → weekly]\n- 각 수업: day(월~일 중 한 글자), start("18:30" 24시간 형식), end("21:30"), subject(과목/수업명), teacher(강사, 없으면 ""), room(강의실, 없으면 ""), note(비고, 없으면 "").\n[docType=sessions → sessionsPlan]\n- course(강좌명), teacher(강사), target(대상), period(기간 예 "8/22 ~ 10/3").\n- items: no(회차 숫자 문자열), date(날짜), topic(주제), content(세부 내용, 없으면 ""), note(비고, 없으면 "").\n[공통]\n- title(문서 제목), academy(학원명), phone(전화번호), website(웹사이트)도 찾아 채워. 없으면 "".\n- 반드시 JSON만 출력.';
+const AI_SCHEMA={type:'OBJECT',properties:{title:{type:'STRING'},academy:{type:'STRING'},phone:{type:'STRING'},website:{type:'STRING'},docType:{type:'STRING'},data:{type:'ARRAY',items:{type:'OBJECT',properties:{school:{type:'STRING'},courses:{type:'ARRAY',items:{type:'OBJECT',properties:{subject:{type:'STRING'},teacher:{type:'STRING'},org:{type:'STRING'},course:{type:'STRING'},sessions:{type:'STRING'},day:{type:'STRING'},ap:{type:'STRING'},time:{type:'STRING'},start:{type:'STRING'},sci:{type:'BOOLEAN'},label:{type:'STRING'},clinic:{type:'STRING'},extra:{type:'STRING'}}}}}}},weekly:{type:'ARRAY',items:{type:'OBJECT',properties:{day:{type:'STRING'},start:{type:'STRING'},end:{type:'STRING'},subject:{type:'STRING'},teacher:{type:'STRING'},room:{type:'STRING'},note:{type:'STRING'}}}},sessionsPlan:{type:'OBJECT',properties:{course:{type:'STRING'},teacher:{type:'STRING'},target:{type:'STRING'},period:{type:'STRING'},items:{type:'ARRAY',items:{type:'OBJECT',properties:{no:{type:'STRING'},date:{type:'STRING'},topic:{type:'STRING'},content:{type:'STRING'},note:{type:'STRING'}}}}}},catalog:{type:'ARRAY',items:{type:'OBJECT',properties:{subject:{type:'STRING'},courses:{type:'ARRAY',items:{type:'OBJECT',properties:{subjectCell:{type:'STRING'},teacher:{type:'STRING'},org:{type:'STRING'},title:{type:'STRING'},subtitle:{type:'STRING'},sections:{type:'ARRAY',items:{type:'OBJECT',properties:{heading:{type:'STRING'},items:{type:'ARRAY',items:{type:'STRING'}}}}},schedules:{type:'ARRAY',items:{type:'OBJECT',properties:{time:{type:'STRING'},day:{type:'STRING'},start:{type:'STRING'}}}}}}}}}}}};
+const AI_PROMPT='너는 학원 시간표/강의계획서 PDF·이미지를 분석해 JSON으로 구조화하는 도우미야. 모든 페이지를 읽고 아래 규칙대로 채워줘.\n[1단계: 문서 유형 판별 → docType]\n- "catalog": 과목별 표에서 각 강좌의 수업 내용 칸에 여러 줄 상세 설명(○ 수업 특징/수업 구성/콘텐츠/관리 같은 섹션과 - 불릿)이 있는 상세 강좌 안내형.\n- "group": 학교/학년/반 등 그룹별로 강좌를 한 줄씩 요약한 표 (상세 설명 불릿 없음).\n- "weekly": 요일(월~일)과 시간 격자에 수업을 배치한 주간 시간표.\n- "sessions": 1회차, 2회차처럼 회차별 주제/내용이 나열된 강의 계획서.\n가장 가까운 유형 하나를 docType에 넣고, 그 유형의 데이터만 채워. 나머지 유형 필드는 빈 배열/빈 값으로 둬.\n[docType=catalog → catalog]\n- 과목 페이지(국어/영어/수학 등)별로 catalog 배열 항목(subject)으로 그룹핑. 모든 페이지, 모든 강좌를 빠짐없이.\n- 각 강좌: subjectCell(과목 열 표기 예 "국어 특강", "미적분"), teacher(강사명), org(소속/출신, 여러 줄이면 \\n으로 연결), title(강좌명 첫 줄), subtitle(강좌명 아래 부제, 없으면 ""), sections(수업 내용의 ○ 섹션들: heading은 ○ 제외한 제목, items는 - 제외한 각 줄 텍스트 배열 — ■로 시작하는 소제목과 ※ 참고는 기호 포함 그대로 항목으로), schedules(시간/요일·개강일 블록이 여러 개면 모두: time 예 "am8:40~12:40", day 예 "토요일", start 예 "7/11" 또는 "7/19 ~ 8/16").\n[docType=group → data]\n- 학교/학년별로 data 배열 항목(school)로 그룹핑.\n- 각 강좌: subject(과목), teacher(강사명), org(소속/출신, 없으면 ""), course(강좌명), sessions(회차 예 "6+1"), day(요일 한 글자 예 "토"), ap("am" 또는 "pm"), time("09:00~12:00" 24시간 형식), start(개강일 예 "8/29"), sci(과학/특별과목이면 true 아니면 false), label(마감/신설/특강/인기 중 표시된 것, 없으면 ""), clinic(클리닉·비고 있으면 아니면 ""), extra(수강료·강의실 등 그 외 정보를 "키: 값" 형태로, 없으면 "").\n[docType=weekly → weekly]\n- 각 수업: day(월~일 중 한 글자), start("18:30" 24시간 형식), end("21:30"), subject(과목/수업명), teacher(강사, 없으면 ""), room(강의실, 없으면 ""), note(비고, 없으면 "").\n[docType=sessions → sessionsPlan]\n- course(강좌명), teacher(강사), target(대상), period(기간 예 "8/22 ~ 10/3").\n- items: no(회차 숫자 문자열), date(날짜), topic(주제), content(세부 내용, 없으면 ""), note(비고, 없으면 "").\n[공통]\n- title(문서 제목, 표지가 있으면 표지 제목), academy(학원명), phone(전화번호), website(웹사이트)도 찾아 채워. 없으면 "".\n- 반드시 JSON만 출력.';
 
 function normCourse(c){ return {subject:c.subject||'',teacher:c.teacher||'',org:c.org||'',course:c.course||'',sessions:c.sessions||'',day:(c.day||'').slice(0,2),ap:(String(c.ap).toLowerCase()==='am'?'am':'pm'),time:c.time||'',start:c.start||'',sci:!!c.sci,label:(['마감','신설','특강','인기'].indexOf(c.label)>=0?c.label:''),clinic:c.clinic||'',extra:c.extra||''}; }
 function normWeekly(e){ return {day:String(e.day||'').slice(0,1),start:e.start||'',end:e.end||'',subject:e.subject||'',teacher:e.teacher||'',room:e.room||'',note:e.note||''}; }
 function normSessionItem(it,i){ return {no:String(it.no||i+1),date:it.date||'',topic:it.topic||'',content:it.content||'',note:it.note||''}; }
+function normCatalogCourse(c){ return {
+  subjectCell:c.subjectCell||'',teacher:c.teacher||'',org:c.org||'',title:c.title||'',subtitle:c.subtitle||'',
+  sections:Array.isArray(c.sections)?c.sections.map(s=>({heading:s.heading||'',items:Array.isArray(s.items)?s.items.map(x=>String(x)):[]})):[],
+  schedules:(Array.isArray(c.schedules)&&c.schedules.length)?c.schedules.map(s=>({time:s.time||'',day:s.day||'',start:s.start||''})):[{time:'',day:'',start:''}]
+}; }
 function applyExtracted(o){
   if(o.title) state.meta.title=o.title;
   if(o.academy) state.meta.academy=o.academy;
@@ -688,13 +887,17 @@ function applyExtracted(o){
   const hasGroup=Array.isArray(o.data)&&o.data.length;
   const hasWeekly=Array.isArray(o.weekly)&&o.weekly.length;
   const hasSess=o.sessionsPlan&&Array.isArray(o.sessionsPlan.items)&&o.sessionsPlan.items.length;
+  const hasCat=Array.isArray(o.catalog)&&o.catalog.length;
   let dt=String(o.docType||'').toLowerCase();
-  if(['group','weekly','sessions'].indexOf(dt)<0) dt=hasWeekly?'weekly':(hasSess?'sessions':'group');
-  if(dt==='weekly'&&!hasWeekly) dt=hasSess?'sessions':'group';
-  if(dt==='sessions'&&!hasSess) dt=hasWeekly?'weekly':'group';
+  if(['group','weekly','sessions','catalog'].indexOf(dt)<0) dt=hasCat?'catalog':(hasWeekly?'weekly':(hasSess?'sessions':'group'));
+  if(dt==='catalog'&&!hasCat) dt=hasGroup?'group':(hasWeekly?'weekly':(hasSess?'sessions':'group'));
+  if(dt==='weekly'&&!hasWeekly) dt=hasCat?'catalog':(hasSess?'sessions':'group');
+  if(dt==='sessions'&&!hasSess) dt=hasCat?'catalog':(hasWeekly?'weekly':'group');
+  if(dt==='group'&&!hasGroup&&hasCat) dt='catalog';
   if(hasGroup) state.data=o.data.map(g=>({school:g.school||'',courses:(g.courses||[]).map(normCourse)}));
   if(hasWeekly) state.weekly.entries=o.weekly.map(normWeekly);
   if(hasSess) state.sessions={info:{course:o.sessionsPlan.course||'',teacher:o.sessionsPlan.teacher||'',target:o.sessionsPlan.target||'',period:o.sessionsPlan.period||''},items:o.sessionsPlan.items.map(normSessionItem)};
+  if(hasCat) state.catalog={pages:o.catalog.map(p=>({subject:p.subject||'',courses:(p.courses||[]).map(normCatalogCourse)}))};
   state.docType=dt; ensureStyleForType();
   fillMetaInputs(); syncDocTypeUI(); buildStyleList(); buildEditor(); renderPreview();
 }
@@ -732,7 +935,7 @@ async function analyzeWithAI(){
   try{
     const parts=[{text:AI_PROMPT}];
     pdfImages.forEach(u=>parts.push({inline_data:{mime_type:'image/jpeg',data:u.split(',')[1]}}));
-    const body={contents:[{parts:parts}],generationConfig:{responseMimeType:'application/json',responseSchema:AI_SCHEMA,maxOutputTokens:16384,temperature:0.2}};
+    const body={contents:[{parts:parts}],generationConfig:{responseMimeType:'application/json',responseSchema:AI_SCHEMA,maxOutputTokens:32768,temperature:0.2}};
     const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),90000);
     const res=await fetch(GEMINI_URL(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctrl.signal}).finally(()=>clearTimeout(to));
     if(!res.ok){ const e=await res.text(); throw new Error('API '+res.status+' — '+e.slice(0,200)); }
@@ -744,7 +947,8 @@ async function analyzeWithAI(){
     let obj; try{ obj=JSON.parse(txt); }catch(pe){ throw new Error('응답 형식 오류'+(cand.finishReason?' ('+cand.finishReason+')':'')+': '+txt.slice(0,80)); }
     applyExtracted(obj);
     let doneMsg='완료 ✓ ';
-    if(state.docType==='weekly') doneMsg+=state.weekly.entries.length+'개 수업을 채웠어요 (주간 격자로 전환)';
+    if(state.docType==='catalog'){ const nc=state.catalog.pages.reduce((s,p)=>s+p.courses.length,0); doneMsg+=state.catalog.pages.length+'개 과목·'+nc+'개 강좌를 채웠어요 (상세 강좌표로 전환)'; }
+    else if(state.docType==='weekly') doneMsg+=state.weekly.entries.length+'개 수업을 채웠어요 (주간 격자로 전환)';
     else if(state.docType==='sessions') doneMsg+=state.sessions.items.length+'개 회차를 채웠어요 (회차 계획서로 전환)';
     else { const nc=(obj.data||[]).reduce((s,g)=>s+((g.courses||[]).length),0); doneMsg+=((obj.data||[]).length)+'개 학교·'+nc+'개 강좌를 채웠어요'; }
     setAnalyze(doneMsg+'. 필요하면 수정하세요');
