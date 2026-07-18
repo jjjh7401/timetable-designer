@@ -957,34 +957,90 @@ function saveKeyFromSettings(){
   if($('savedBadge')) $('savedBadge').style.display=k?'block':'none';
   setSettingsStatus(k?'✓ 저장되었습니다':'키가 비워졌습니다',k?'ok':'');
 }
+function __detectType(o){
+  if(o&&Array.isArray(o.catalog)&&o.catalog.length) return 'catalog';
+  if(o&&Array.isArray(o.weekly)&&o.weekly.length) return 'weekly';
+  if(o&&o.sessionsPlan&&Array.isArray(o.sessionsPlan.items)&&o.sessionsPlan.items.length) return 'sessions';
+  if(o&&Array.isArray(o.data)&&o.data.length) return 'group';
+  return null;
+}
+function __mergeInto(m,o){
+  if(!o) return;
+  ['title','academy','phone','website'].forEach(function(k){ if(!m[k]&&o[k]) m[k]=o[k]; });
+  if(Array.isArray(o.catalog)) o.catalog.forEach(function(p){
+    var last=m.catalog[m.catalog.length-1];
+    if(last&&(last.subject||'')===(p.subject||'')&&Array.isArray(p.courses)) last.courses=last.courses.concat(p.courses||[]);
+    else m.catalog.push({subject:p.subject||'',courses:(p.courses||[])});
+  });
+  if(Array.isArray(o.data)) o.data.forEach(function(g){
+    var last=m.data[m.data.length-1];
+    if(last&&(last.school||'')===(g.school||'')&&Array.isArray(g.courses)) last.courses=last.courses.concat(g.courses||[]);
+    else m.data.push({school:g.school||'',courses:(g.courses||[])});
+  });
+  if(Array.isArray(o.weekly)) m.weekly=m.weekly.concat(o.weekly);
+  if(o.sessionsPlan&&Array.isArray(o.sessionsPlan.items)&&o.sessionsPlan.items.length){
+    if(!m.sessionsPlan) m.sessionsPlan={course:o.sessionsPlan.course||'',teacher:o.sessionsPlan.teacher||'',target:o.sessionsPlan.target||'',period:o.sessionsPlan.period||'',items:[]};
+    m.sessionsPlan.items=m.sessionsPlan.items.concat(o.sessionsPlan.items);
+  }
+}
+async function __callGemini(images,forced){
+  var extra=forced?('\n[강제] 이 문서의 docType은 이미 \''+forced+'\'로 확정되었다. 반드시 \''+forced+'\' 유형의 데이터만 채우고 docType도 \''+forced+'\'로 응답하라. 다른 유형 필드는 비워라.'):'';
+  var parts=[{text:AI_PROMPT+extra}];
+  images.forEach(function(u){ parts.push({inline_data:{mime_type:'image/jpeg',data:u.split(',')[1]}}); });
+  var body={contents:[{parts:parts}],generationConfig:{responseMimeType:'application/json',responseSchema:AI_SCHEMA,maxOutputTokens:32768,temperature:0.2}};
+  var timeoutMs=Math.min(240000,60000+images.length*20000);
+  var ctrl=new AbortController(); var to=setTimeout(function(){ctrl.abort();},timeoutMs);
+  var res=await fetch(GEMINI_URL(getKey()),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctrl.signal}).finally(function(){clearTimeout(to);});
+  if(!res.ok){ var e=await res.text(); throw new Error('API '+res.status+' — '+e.slice(0,200)); }
+  var j=await res.json();
+  var cand=(j.candidates||[])[0]||{};
+  var txt=(((cand.content||{}).parts)||[]).map(function(p){return p.text||'';}).join('');
+  var fr=cand.finishReason||'';
+  if(fr==='MAX_TOKENS'){ var er=new Error('MAX_TOKENS'); er.maxTokens=true; throw er; }
+  if(!txt){ throw new Error('빈 응답'+(fr?' ('+fr+')':'')); }
+  txt=txt.trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
+  try{ return JSON.parse(txt); }catch(pe){ throw new Error('응답 형식 오류'+(fr?' ('+fr+')':'')+': '+txt.slice(0,80)); }
+}
+async function __extractPages(images,forced){
+  try{ return [await __callGemini(images,forced)]; }
+  catch(err){
+    if(err.maxTokens&&images.length>1){
+      var mid=Math.ceil(images.length/2);
+      var a=await __extractPages(images.slice(0,mid),forced);
+      var nf=forced; if(!nf){ for(var i=0;i<a.length&&!nf;i++) nf=__detectType(a[i]); }
+      var b=await __extractPages(images.slice(mid),nf);
+      return a.concat(b);
+    }
+    throw err;
+  }
+}
 async function analyzeWithAI(){
   const key=getKey();
   if(!key){ alert('먼저 설정(⚙)에서 Gemini API 키를 입력·저장해주세요.'); openSettings(); return; }
   if(!pdfImages.length){ alert('먼저 PDF를 업로드해주세요.'); return; }
   saveKeyVal(key);
-  $('btnAnalyze').disabled=true; setAnalyze('AI가 분석 중… (최대 1분 정도 걸릴 수 있어요)');
+  $('btnAnalyze').disabled=true;
   try{
-    const parts=[{text:AI_PROMPT}];
-    pdfImages.forEach(u=>parts.push({inline_data:{mime_type:'image/jpeg',data:u.split(',')[1]}}));
-    const body={contents:[{parts:parts}],generationConfig:{responseMimeType:'application/json',responseSchema:AI_SCHEMA,maxOutputTokens:32768,temperature:0.2}};
-    const timeoutMs=Math.min(240000, 60000+pdfImages.length*15000);
-    const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),timeoutMs);
-    const res=await fetch(GEMINI_URL(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctrl.signal}).finally(()=>clearTimeout(to));
-    if(!res.ok){ const e=await res.text(); throw new Error('API '+res.status+' — '+e.slice(0,200)); }
-    const j=await res.json();
-    const cand=(j.candidates||[])[0]||{};
-    let txt=(((cand.content||{}).parts)||[]).map(p=>p.text||'').join('');
-    if(!txt){ throw new Error('빈 응답'+(cand.finishReason?' ('+cand.finishReason+')':'')); }
-    txt=txt.trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
-    let obj; try{ obj=JSON.parse(txt); }catch(pe){ throw new Error('응답 형식 오류'+(cand.finishReason?' ('+cand.finishReason+')':'')+': '+txt.slice(0,80)); }
-    applyExtracted(obj);
-    let doneMsg='완료 ✓ ';
+    const CHUNK=3;
+    const total=Math.ceil(pdfImages.length/CHUNK);
+    const merged={title:'',academy:'',phone:'',website:'',docType:'',data:[],weekly:[],catalog:[],sessionsPlan:null};
+    let forced=null;
+    for(let ci=0, part=0; ci<pdfImages.length; ci+=CHUNK, part++){
+      const imgs=pdfImages.slice(ci,ci+CHUNK);
+      setAnalyze('AI 분석 중… ('+(part+1)+'/'+total+' 묶음)'+(total>1?' · 페이지를 나눠 분석 중':''));
+      const objs=await __extractPages(imgs,forced);
+      objs.forEach(function(o){ if(!forced){ const dt=__detectType(o); if(dt) forced=dt; } __mergeInto(merged,o); });
+    }
+    merged.docType=forced||__detectType(merged)||'group';
+    if(!merged.sessionsPlan) delete merged.sessionsPlan;
+    applyExtracted(merged);
+    let doneMsg='완료 ✓ '+(total>1?'('+total+'묶음 병합) ':'');
     if(state.docType==='catalog'){ const nc=state.catalog.pages.reduce((s,p)=>s+p.courses.length,0); doneMsg+=state.catalog.pages.length+'개 과목·'+nc+'개 강좌를 채웠어요 (상세 강좌표로 전환)'; }
     else if(state.docType==='weekly') doneMsg+=state.weekly.entries.length+'개 수업을 채웠어요 (주간 격자로 전환)';
     else if(state.docType==='sessions') doneMsg+=state.sessions.items.length+'개 회차를 채웠어요 (회차 계획서로 전환)';
-    else { const nc=(obj.data||[]).reduce((s,g)=>s+((g.courses||[]).length),0); doneMsg+=((obj.data||[]).length)+'개 학교·'+nc+'개 강좌를 채웠어요'; }
+    else { const nc=state.data.reduce((s,g)=>s+g.courses.length,0); doneMsg+=state.data.length+'개 학교·'+nc+'개 강좌를 채웠어요'; }
     setAnalyze(doneMsg+'. 필요하면 수정하세요');
-  }catch(err){ const msg=(err.name==='AbortError'?'시간 초과. 페이지가 많으면 오래 걸립니다. 다시 시도하거나 설정에서 다른 모델을 선택해보세요':err.message); setAnalyze('분석 실패: '+msg); alert('AI 분석 실패: '+msg); }
+  }catch(err){ const msg=(err.name==='AbortError'?'시간 초과. 다시 시도하거나 설정에서 다른 모델을 선택해보세요':(err.maxTokens?'응답이 너무 깁니다. 페이지 수를 줄이거나 다시 시도해주세요':err.message)); setAnalyze('분석 실패: '+msg); alert('AI 분석 실패: '+msg); }
   $('btnAnalyze').disabled=false;
 }
 (function bindPdf(){
