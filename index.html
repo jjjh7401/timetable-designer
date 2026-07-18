@@ -36,6 +36,9 @@
   .meta-field label{display:block;font-size:11.5px;font-weight:600;color:var(--mut);margin-bottom:5px;}
   .meta-field input{width:100%;font-size:13.5px;padding:8px 11px;border:1px solid var(--bd);border-radius:8px;background:#fff;color:var(--ink);font-family:inherit;}
   .meta-field input:focus{outline:none;border-color:var(--acc);}
+  .seg{display:flex;gap:6px;background:#eef0f4;border:1px solid var(--bd);border-radius:10px;padding:4px;}
+  .seg button{flex:1;font-size:12.5px;font-weight:700;padding:8px 4px;border:none;border-radius:7px;background:transparent;color:#6b7280;cursor:pointer;transition:.12s;}
+  .seg button.on{background:#fff;color:var(--acc);box-shadow:0 1px 3px rgba(0,0,0,.08);}
   .school-card{background:#fff;border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px;}
   .school-head{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
   .school-head input{flex:1;font-size:15px;font-weight:700;padding:7px 10px;border:1px solid var(--bd);border-radius:8px;background:#fbfbfc;}
@@ -148,7 +151,13 @@
         <div class="meta-field"><label>전화번호</label><input id="metaPhone" type="text"></div>
         <div class="meta-field"><label>웹사이트</label><input id="metaWebsite" type="text"></div>
       </div>
-      <div class="sec-t" style="margin-top:20px">강좌 데이터</div>
+      <div class="sec-t" style="margin-top:20px">문서 유형</div>
+      <div class="seg" id="docTypeSeg">
+        <button data-dt="group" class="on">그룹표</button>
+        <button data-dt="weekly">주간 격자</button>
+        <button data-dt="sessions">회차 계획서</button>
+      </div>
+      <div class="sec-t" style="margin-top:16px" id="dataSecT">강좌 데이터</div>
       <div id="editor"></div>
       <button class="add-school" id="addSchool">＋ 학교 / 그룹 추가</button>
     </div>
@@ -201,6 +210,139 @@ const DEFAULT_DATA=[{"school":"대일고","courses":[{"subject":"국어","teache
 </script>
   <script>
 /* ===== Timetable Designer App Logic ===== */
+
+/* ---------- v2: docType별 추가 레이아웃 템플릿 ---------- */
+TEMPLATES.weekly_basic = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>Weekly</title><style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Apple SD Gothic Neo','Pretendard','Noto Sans KR',sans-serif;background:#eef0f4;padding:40px 0;color:#1a1d24;-webkit-font-smoothing:antialiased;}
+.sheet{width:1120px;margin:0 auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 12px 40px rgba(20,28,50,.12);}
+.head{background:linear-gradient(135deg,#1b2340,#2c3a63);color:#fff;padding:34px 40px 30px;}
+.head .brand{font-size:15px;letter-spacing:3px;color:#9fb0d6;font-weight:700;}
+.head h1{font-size:34px;font-weight:800;margin-top:8px;letter-spacing:-1px;}
+.head .sub{margin-top:10px;font-size:16px;color:#c4cfe6;font-weight:500;}
+.head .tag{display:inline-block;margin-top:16px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#eaf0ff;padding:6px 16px;border-radius:999px;font-size:14px;font-weight:600;}
+.board{display:grid;gap:14px;padding:28px;}
+.daycol{background:#f6f7fb;border:1px solid #e7eaf3;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px;min-height:140px;}
+.dayhead{text-align:center;font-size:16px;font-weight:800;color:#1b2340;padding:6px 0 8px;border-bottom:2px solid #e2e6f2;}
+.cls{background:#fff;border:1px solid #e5e8f1;border-left:4px solid #4f5fd6;border-radius:10px;padding:10px 12px;}
+.cls .tm{font-size:12.5px;font-weight:700;color:#4f5fd6;letter-spacing:.3px;}
+.cls .sj{font-size:15.5px;font-weight:800;color:#171b26;margin-top:3px;}
+.cls .tc{font-size:12.5px;color:#6b7280;margin-top:2px;font-weight:600;}
+.cls .nt{font-size:11.5px;color:#98a0b3;margin-top:4px;}
+.empty{color:#b6bccb;font-size:12px;text-align:center;padding:16px 0;}
+.foot{padding:20px 40px;background:#f4f6fb;display:flex;justify-content:space-between;align-items:center;}
+.foot .name{font-size:17px;font-weight:800;color:#1b2340;}
+.foot .info{font-size:14px;color:#5b6480;font-weight:500;}
+</style></head><body>
+<div class="sheet">
+  <div class="head">
+    <div class="brand">WEEKLY TIMETABLE</div>
+    <h1>2025 내신 대비반 시간표</h1>
+    <div class="sub">주간 수업 시간표</div>
+    <div class="tag">요일별 수업 안내</div>
+  </div>
+  <div class="board" id="board"></div>
+  <div class="foot"><div class="name">목동예섬</div><div class="info">문의전화 02-6212-8822 &nbsp;·&nbsp; www.yesum.co.kr</div></div>
+</div>
+<script>
+/*DATA_INJECTION_POINT*/
+(function(){
+  var ORDER=['월','화','수','목','금','토','일'];
+  var entries=(data&&data.entries)||[];
+  var days=ORDER.filter(function(d){return entries.some(function(e){return e.day===d;});});
+  if(!days.length) days=['월','화','수','목','금'];
+  var board=document.getElementById('board');
+  board.style.gridTemplateColumns='repeat('+days.length+',1fr)';
+  days.forEach(function(d){
+    var col=document.createElement('div'); col.className='daycol';
+    var html='<div class="dayhead">'+d+'</div>';
+    var list=entries.filter(function(e){return e.day===d;}).sort(function(a,b){return String(a.start||'').localeCompare(String(b.start||''));});
+    if(!list.length) html+='<div class="empty">수업 없음</div>';
+    list.forEach(function(e){
+      html+='<div class="cls"><div class="tm">'+(e.start||'')+(e.end?' ~ '+e.end:'')+'</div><div class="sj">'+(e.subject||'')+'</div>'
+        +(e.teacher||e.room?'<div class="tc">'+[e.teacher,e.room].filter(Boolean).join(' · ')+'</div>':'')
+        +(e.note?'<div class="nt">'+e.note+'</div>':'')+'</div>';
+    });
+    col.innerHTML=html; board.appendChild(col);
+  });
+  if(typeof META!=='undefined'){
+    if(META.sub){var s=document.querySelector('.head .sub');if(s)s.textContent=META.sub;}
+    if(META.tag){var t=document.querySelector('.head .tag');if(t)t.textContent=META.tag;}
+  }
+})();
+<\/script>
+</body></html>`;
+
+TEMPLATES.sessions_basic = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>Sessions</title><style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Apple SD Gothic Neo','Pretendard','Noto Sans KR',sans-serif;background:#eef2f0;padding:40px 0;color:#1a1d24;-webkit-font-smoothing:antialiased;}
+.sheet{width:1120px;margin:0 auto;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 12px 40px rgba(20,40,32,.12);}
+.head{background:linear-gradient(135deg,#1f3d33,#2c5a4a);color:#fff;padding:34px 40px 30px;}
+.head .brand{font-size:15px;letter-spacing:3px;color:#a9cbbc;font-weight:700;}
+.head h1{font-size:34px;font-weight:800;margin-top:8px;letter-spacing:-1px;}
+.head .sub{margin-top:10px;font-size:16px;color:#cfe4da;font-weight:500;}
+.head .tag{display:inline-block;margin-top:16px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);color:#ecf7f2;padding:6px 16px;border-radius:999px;font-size:14px;font-weight:600;}
+.info-bar{display:grid;grid-template-columns:2fr 1fr 1fr 1.4fr;border-bottom:1px solid #e2e9e5;}
+.info-cell{padding:16px 22px;border-right:1px solid #edf2ef;}
+.info-cell:last-child{border-right:none;}
+.info-cell label{display:block;font-size:11.5px;font-weight:700;color:#93a39b;letter-spacing:.6px;margin-bottom:5px;}
+.info-cell div{font-size:16.5px;font-weight:800;color:#1b2b26;}
+table{width:100%;border-collapse:collapse;}
+thead th{background:#2c5a4a;color:#eef7f2;font-size:14.5px;font-weight:700;padding:13px 10px;text-align:center;letter-spacing:.5px;}
+tbody td{padding:15px 14px;border-bottom:1px solid #edf2ef;font-size:15.5px;vertical-align:top;text-align:center;}
+td.no{width:90px;}
+td.no .pill{display:inline-block;background:#e7f2ec;color:#2c7a5b;padding:5px 12px;border-radius:9px;font-size:14.5px;font-weight:800;}
+td.date{width:110px;font-weight:700;color:#2c5a4a;white-space:nowrap;}
+td.topic{text-align:left;}
+td.topic b{display:block;font-size:16.5px;font-weight:800;color:#171f1b;}
+td.topic span{display:block;margin-top:5px;font-size:13.5px;color:#5f6c66;line-height:1.55;}
+td.note{width:150px;font-size:13px;color:#8a968f;}
+.foot{padding:20px 40px;background:#f2f6f4;display:flex;justify-content:space-between;align-items:center;}
+.foot .name{font-size:17px;font-weight:800;color:#1f3d33;}
+.foot .info{font-size:14px;color:#5b6862;font-weight:500;}
+</style></head><body>
+<div class="sheet">
+  <div class="head">
+    <div class="brand">LESSON PLAN</div>
+    <h1>2025 내신 대비반 시간표</h1>
+    <div class="sub">회차별 강의 계획서</div>
+    <div class="tag">커리큘럼 안내</div>
+  </div>
+  <div class="info-bar">
+    <div class="info-cell"><label>강좌명</label><div id="ibCourse">-</div></div>
+    <div class="info-cell"><label>강사</label><div id="ibTeacher">-</div></div>
+    <div class="info-cell"><label>대상</label><div id="ibTarget">-</div></div>
+    <div class="info-cell"><label>기간</label><div id="ibPeriod">-</div></div>
+  </div>
+  <table><thead><tr><th>회차</th><th>날짜</th><th>주제 및 내용</th><th>비고</th></tr></thead><tbody id="body"></tbody></table>
+  <div class="foot"><div class="name">목동예섬</div><div class="info">문의전화 02-6212-8822 &nbsp;·&nbsp; www.yesum.co.kr</div></div>
+</div>
+<script>
+/*DATA_INJECTION_POINT*/
+(function(){
+  var info=(data&&data.info)||{};
+  var items=(data&&data.items)||[];
+  var map={ibCourse:info.course,ibTeacher:info.teacher,ibTarget:info.target,ibPeriod:info.period};
+  Object.keys(map).forEach(function(k){var el=document.getElementById(k);if(el)el.textContent=map[k]||'-';});
+  var body=document.getElementById('body');
+  items.forEach(function(it,i){
+    var n=String(it.no||i+1); if(n.indexOf('회')<0) n+='회';
+    var tr=document.createElement('tr');
+    tr.innerHTML='<td class="no"><span class="pill">'+n+'</span></td>'
+      +'<td class="date">'+(it.date||'')+'</td>'
+      +'<td class="topic"><b>'+(it.topic||'')+'</b>'+(it.content?'<span>'+it.content+'</span>':'')+'</td>'
+      +'<td class="note">'+(it.note||'')+'</td>';
+    body.appendChild(tr);
+  });
+  if(typeof META!=='undefined'){
+    if(META.sub){var s=document.querySelector('.head .sub');if(s)s.textContent=META.sub;}
+    if(META.tag){var t=document.querySelector('.head .tag');if(t)t.textContent=META.tag;}
+  }
+})();
+<\/script>
+</body></html>`;
+
+
 const STYLE_META = {
   apple:{n:'Apple',d:'여백형 스펙시트',c:'디자인 시스템',s:'#0071e3'},
   airbnb:{n:'Airbnb',d:'리스팅 카드 그리드',c:'디자인 시스템',s:'#ff385c'},
@@ -222,15 +364,44 @@ const STYLE_META = {
   dugak:{n:'두각',d:'학원 표준 표',c:'학원',s:'#1b2340'},
   sidae:{n:'시대인재',d:'콘텐츠 강조 표',c:'학원',s:'#c9a24a'},
   mimac:{n:'대성마이맥',d:'레드 카드 그리드',c:'학원',s:'#e2251b'},
+  weekly_basic:{n:'주간 격자 · 기본',d:'요일별 수업 보드',c:'기본 레이아웃',s:'#4f5fd6'},
+  sessions_basic:{n:'회차 계획서 · 기본',d:'회차별 커리큘럼 표',c:'기본 레이아웃',s:'#2c7a5b'},
 };
 const STYLE_ORDER = ['dugak','sidae','mimac','swiss','sage','vintage','mono','terracotta','apple','airbnb','vercel','claude','notion','linear','stripe','figma','cursor','coinbase','minimax','cal'];
+const STYLES_BY_TYPE = { group: STYLE_ORDER, weekly: ['weekly_basic'], sessions: ['sessions_basic'] };
 const LABELS = ['','인기','신설','특강','마감'];
 
 const state = {
   styleKey: 'dugak',
+  docType: 'group',
   meta: { title:'2025 내신 대비반 시간표', sub:'고1 통합 · 국어 · 영어 · 통합과학 · 학교별 맞춤 커리큘럼', tag:'8월 개강 · 학교별 반 편성', academy:'목동예섬', phone:'02-6212-8822', website:'www.yesum.co.kr' },
   data: JSON.parse(JSON.stringify(DEFAULT_DATA)),
+  weekly: { entries: [
+    {day:'월',start:'18:30',end:'21:30',subject:'국어 내신 대비',teacher:'',room:'',note:''},
+    {day:'수',start:'18:30',end:'22:00',subject:'통합과학 내신 대비',teacher:'',room:'',note:''},
+    {day:'토',start:'09:00',end:'12:00',subject:'영어 내신 대비',teacher:'',room:'',note:''}
+  ] },
+  sessions: { info:{course:'국어 내신 대비반',teacher:'',target:'고1',period:''}, items:[
+    {no:'1',date:'8/22',topic:'오리엔테이션 · 내신 범위 분석',content:'',note:''},
+    {no:'2',date:'8/29',topic:'핵심 작품 정리',content:'',note:''}
+  ] },
 };
+function ensureStyleForType(){
+  const list=STYLES_BY_TYPE[state.docType]||STYLE_ORDER;
+  if(list.indexOf(state.styleKey)<0){
+    state.styleKey=list[0];
+    const m=STYLE_META[state.styleKey];
+    const n=document.getElementById('pvName'), d=document.getElementById('pvDesc');
+    if(n) n.textContent=m.n; if(d) d.textContent=m.d;
+  }
+}
+function syncDocTypeUI(){
+  const seg=document.getElementById('docTypeSeg');
+  if(seg) [].forEach.call(seg.querySelectorAll('button'),b=>b.classList.toggle('on',b.dataset.dt===state.docType));
+  const titles={group:'강좌 데이터',weekly:'주간 수업 데이터',sessions:'회차별 계획 데이터'};
+  const st=document.getElementById('dataSecT'); if(st) st.textContent=titles[state.docType];
+  const asb=document.getElementById('addSchool'); if(asb) asb.style.display=(state.docType==='group')?'':'none';
+}
 
 const $ = (id)=>document.getElementById(id);
 let previewTimer=null;
@@ -240,7 +411,7 @@ function schedulePreview(){ clearTimeout(previewTimer); previewTimer=setTimeout(
 function buildStyleList(){
   const wrap=$('styleList'); wrap.innerHTML='';
   let lastCat='';
-  STYLE_ORDER.forEach(k=>{
+  (STYLES_BY_TYPE[state.docType]||STYLE_ORDER).forEach(k=>{
     const m=STYLE_META[k];
     if(m.c!==lastCat){ const c=document.createElement('div'); c.className='style-cat'; c.textContent=m.c; wrap.appendChild(c); lastCat=m.c; }
     const it=document.createElement('div');
@@ -269,6 +440,64 @@ function fld(label, si, ci, f, val, opts){
   return `<div class="fld"><label>${label}</label><input data-si="${si}" data-ci="${ci}" data-f="${f}" value="${(val||'').replace(/"/g,'&quot;')}"></div>`;
 }
 function buildEditor(){
+  if(state.docType==='weekly') return buildWeeklyEditor();
+  if(state.docType==='sessions') return buildSessionsEditor();
+  buildGroupEditor();
+}
+function gfld(label,attrs,val,opts){
+  const at=Object.keys(attrs).map(k=>`data-${k}="${attrs[k]}"`).join(' ');
+  if(opts){
+    const o=opts.map(x=>`<option ${x===val?'selected':''}>${x}</option>`).join('');
+    return `<div class="fld"><label>${label}</label><select ${at}>${o}</select></div>`;
+  }
+  return `<div class="fld"><label>${label}</label><input ${at} value="${(val||'').replace(/"/g,'&quot;')}"></div>`;
+}
+function buildWeeklyEditor(){
+  const wrap=$('editor'); wrap.innerHTML='';
+  const box=document.createElement('div'); box.className='school-card';
+  let rows='';
+  state.weekly.entries.forEach((en,wi)=>{
+    rows+=`<div class="course-card"><div class="course-grid">
+      ${gfld('요일',{wi,f:'day'},en.day,['월','화','수','목','금','토','일'])}
+      ${gfld('시작 (예 18:30)',{wi,f:'start'},en.start)}
+      ${gfld('종료',{wi,f:'end'},en.end)}
+      ${gfld('과목/수업명',{wi,f:'subject'},en.subject)}
+      ${gfld('강사',{wi,f:'teacher'},en.teacher)}
+      ${gfld('강의실',{wi,f:'room'},en.room)}
+      <div class="full">${gfld('비고',{wi,f:'note'},en.note)}</div>
+    </div>
+    <div class="course-foot"><span></span><button class="del-course" data-act="delw" data-wi="${wi}">✕ 수업 삭제</button></div></div>`;
+  });
+  box.innerHTML=rows+'<button class="add-btn" data-act="addw">＋ 수업 추가</button>';
+  wrap.appendChild(box);
+}
+function buildSessionsEditor(){
+  const wrap=$('editor'); wrap.innerHTML='';
+  const info=state.sessions.info;
+  const head=document.createElement('div'); head.className='school-card';
+  head.innerHTML=`<div class="course-grid">
+    <div class="full">${gfld('강좌명',{sf:'course'},info.course)}</div>
+    ${gfld('강사',{sf:'teacher'},info.teacher)}
+    ${gfld('대상',{sf:'target'},info.target)}
+    <div class="full">${gfld('기간 (예 8/22 ~ 10/3)',{sf:'period'},info.period)}</div>
+  </div>`;
+  wrap.appendChild(head);
+  const box=document.createElement('div'); box.className='school-card';
+  let rows='';
+  state.sessions.items.forEach((it,ki)=>{
+    rows+=`<div class="course-card"><div class="course-grid">
+      ${gfld('회차',{ki,f:'no'},it.no)}
+      ${gfld('날짜',{ki,f:'date'},it.date)}
+      <div class="full">${gfld('주제',{ki,f:'topic'},it.topic)}</div>
+      <div class="full">${gfld('내용',{ki,f:'content'},it.content)}</div>
+      <div class="full">${gfld('비고',{ki,f:'note'},it.note)}</div>
+    </div>
+    <div class="course-foot"><span></span><button class="del-course" data-act="delk" data-ki="${ki}">✕ 회차 삭제</button></div></div>`;
+  });
+  box.innerHTML=rows+'<button class="add-btn" data-act="addk">＋ 회차 추가</button>';
+  wrap.appendChild(box);
+}
+function buildGroupEditor(){
   const wrap=$('editor'); wrap.innerHTML='';
   state.data.forEach((g,si)=>{
     const card=document.createElement('div'); card.className='school-card';
@@ -287,6 +516,7 @@ function buildEditor(){
           ${fld('개강일',si,ci,'start',c.start)}
           ${fld('라벨',si,ci,'label',c.label||'',LABELS)}
           <div class="full">${fld('클리닉/비고',si,ci,'clinic',c.clinic||'')}</div>
+          <div class="full">${fld('기타 (수강료·강의실 등)',si,ci,'extra',c.extra||'')}</div>
         </div>
         <div class="course-foot">
           <label class="chk"><input type="checkbox" data-si="${si}" data-ci="${ci}" data-f="sci" ${c.sci?'checked':''}>강조(통합과학 등)</label>
@@ -304,7 +534,17 @@ function buildEditor(){
 function bindEditor(){
   const wrap=$('editor');
   wrap.addEventListener('input',(e)=>{
-    const t=e.target; const si=t.dataset.si, ci=t.dataset.ci, f=t.dataset.f;
+    const t=e.target;
+    if(state.docType==='weekly'){
+      if(t.dataset.wi===undefined||!t.dataset.f) return;
+      state.weekly.entries[+t.dataset.wi][t.dataset.f]=t.value; schedulePreview(); return;
+    }
+    if(state.docType==='sessions'){
+      if(t.dataset.sf){ state.sessions.info[t.dataset.sf]=t.value; schedulePreview(); return; }
+      if(t.dataset.ki===undefined||!t.dataset.f) return;
+      state.sessions.items[+t.dataset.ki][t.dataset.f]=t.value; schedulePreview(); return;
+    }
+    const si=t.dataset.si, ci=t.dataset.ci, f=t.dataset.f;
     if(si===undefined) return;
     if(f==='school'){ state.data[si].school=t.value; schedulePreview(); return; }
     if(ci===undefined) return;
@@ -317,13 +557,17 @@ function bindEditor(){
   wrap.addEventListener('click',(e)=>{
     const b=e.target.closest('[data-act]'); if(!b) return;
     const act=b.dataset.act, si=+b.dataset.si, ci=+b.dataset.ci;
-    if(act==='addc') state.data[si].courses.push({subject:'국어',teacher:'',org:'',course:'새 강좌',sessions:'6+1',day:'토',ap:'pm',time:'14:00~17:00',start:'8/1',sci:false,label:''});
+    if(act==='addw') state.weekly.entries.push({day:'월',start:'18:00',end:'21:00',subject:'새 수업',teacher:'',room:'',note:''});
+    else if(act==='delw') state.weekly.entries.splice(+b.dataset.wi,1);
+    else if(act==='addk') state.sessions.items.push({no:String(state.sessions.items.length+1),date:'',topic:'새 회차',content:'',note:''});
+    else if(act==='delk') state.sessions.items.splice(+b.dataset.ki,1);
+    else if(act==='addc') state.data[si].courses.push({subject:'국어',teacher:'',org:'',course:'새 강좌',sessions:'6+1',day:'토',ap:'pm',time:'14:00~17:00',start:'8/1',sci:false,label:'',extra:''});
     else if(act==='delc') state.data[si].courses.splice(ci,1);
     else if(act==='dels') state.data.splice(si,1);
     buildEditor(); renderPreview();
   });
 }
-$('addSchool').onclick=()=>{ state.data.push({school:'새 학교',courses:[{subject:'국어',teacher:'',org:'',course:'새 강좌',sessions:'6+1',day:'토',ap:'pm',time:'14:00~17:00',start:'8/1',sci:false,label:''}]}); buildEditor(); renderPreview(); };
+$('addSchool').onclick=()=>{ state.data.push({school:'새 학교',courses:[{subject:'국어',teacher:'',org:'',course:'새 강좌',sessions:'6+1',day:'토',ap:'pm',time:'14:00~17:00',start:'8/1',sci:false,label:'',extra:''}]}); buildEditor(); renderPreview(); };
 
 /* ---------- Preview ---------- */
 const CAPTURE_SCRIPT = `
@@ -355,9 +599,12 @@ if(META.tag){var te=lv.filter(function(e){return /개강|편성|모집|접수/.t
 function buildHTML(withCapture){
   let html = TEMPLATES[state.styleKey];
   const m=state.meta;
-  const inj = 'const data = ' + JSON.stringify(state.data) + '; const META = ' + JSON.stringify({title:m.title,sub:m.sub,tag:m.tag,academy:m.academy}) + ';';
+  let payload=state.data;
+  if(state.docType==='weekly') payload={entries:state.weekly.entries};
+  else if(state.docType==='sessions') payload={info:state.sessions.info,items:state.sessions.items};
+  const inj = 'const data = ' + JSON.stringify(payload) + '; const META = ' + JSON.stringify({title:m.title,sub:m.sub,tag:m.tag,academy:m.academy}) + ';';
   html = html.replace('/*DATA_INJECTION_POINT*/', inj);
-  if(m.website){ html=html.split('www.yesum.co.kr').join(m.website).split('yesum.co.kr').join(m.website); }
+  if(m.website){ html=html.split('www.yesum.co.kr').join('@@W@@').split('yesum.co.kr').join(m.website).split('@@W@@').join(m.website); }
   if(m.academy){ html=html.split('목동예섬').join(m.academy); }
   if(m.phone){ html=html.split('02-6212-8822').join(m.phone); }
   if(m.title){ html=html.split('2025 내신 대비반 시간표').join(m.title); }
@@ -427,17 +674,29 @@ async function handlePdf(file){
   }catch(err){ setAnalyze('PDF 읽기 실패'); alert('PDF를 읽지 못했습니다: '+err.message); }
 }
 
-const AI_SCHEMA={type:'OBJECT',properties:{title:{type:'STRING'},academy:{type:'STRING'},phone:{type:'STRING'},website:{type:'STRING'},data:{type:'ARRAY',items:{type:'OBJECT',properties:{school:{type:'STRING'},courses:{type:'ARRAY',items:{type:'OBJECT',properties:{subject:{type:'STRING'},teacher:{type:'STRING'},org:{type:'STRING'},course:{type:'STRING'},sessions:{type:'STRING'},day:{type:'STRING'},ap:{type:'STRING'},time:{type:'STRING'},start:{type:'STRING'},sci:{type:'BOOLEAN'},label:{type:'STRING'},clinic:{type:'STRING'}}}}}}}}};
-const AI_PROMPT='너는 학원 시간표 PDF/이미지를 분석해 JSON으로 구조화하는 도우미야. 이미지를 읽고 아래 규칙대로 채워줘.\n- 학교/학년별로 data 배열 항목(school)로 그룹핑.\n- 각 강좌: subject(과목), teacher(강사명), org(소속/출신, 없으면 ""), course(강좌명), sessions(회차 예 "6+1"), day(요일 한 글자 예 "토"), ap("am" 또는 "pm"), time("09:00~12:00" 24시간 형식), start(개강일 예 "8/29"), sci(과학/특별과목이면 true 아니면 false), label(마감/신설/특강/인기 중 표시된 것, 없으면 ""), clinic(클리닉·비고 있으면 아니면 "").\n- title(시간표 제목), academy(학원명), phone(전화번호), website(웹사이트)도 이미지에서 찾아 채워. 없으면 "".\n- 반드시 JSON만 출력.';
+const AI_SCHEMA={type:'OBJECT',properties:{title:{type:'STRING'},academy:{type:'STRING'},phone:{type:'STRING'},website:{type:'STRING'},docType:{type:'STRING'},data:{type:'ARRAY',items:{type:'OBJECT',properties:{school:{type:'STRING'},courses:{type:'ARRAY',items:{type:'OBJECT',properties:{subject:{type:'STRING'},teacher:{type:'STRING'},org:{type:'STRING'},course:{type:'STRING'},sessions:{type:'STRING'},day:{type:'STRING'},ap:{type:'STRING'},time:{type:'STRING'},start:{type:'STRING'},sci:{type:'BOOLEAN'},label:{type:'STRING'},clinic:{type:'STRING'},extra:{type:'STRING'}}}}}}},weekly:{type:'ARRAY',items:{type:'OBJECT',properties:{day:{type:'STRING'},start:{type:'STRING'},end:{type:'STRING'},subject:{type:'STRING'},teacher:{type:'STRING'},room:{type:'STRING'},note:{type:'STRING'}}}},sessionsPlan:{type:'OBJECT',properties:{course:{type:'STRING'},teacher:{type:'STRING'},target:{type:'STRING'},period:{type:'STRING'},items:{type:'ARRAY',items:{type:'OBJECT',properties:{no:{type:'STRING'},date:{type:'STRING'},topic:{type:'STRING'},content:{type:'STRING'},note:{type:'STRING'}}}}}}}};
+const AI_PROMPT='너는 학원 시간표/강의계획서 PDF·이미지를 분석해 JSON으로 구조화하는 도우미야. 이미지를 읽고 아래 규칙대로 채워줘.\n[1단계: 문서 유형 판별 → docType]\n- "group": 학교/학년/반 등 그룹별로 강좌 목록이 표로 정리된 형태.\n- "weekly": 요일(월~일)과 시간 격자에 수업을 배치한 주간 시간표 형태.\n- "sessions": 1회차, 2회차처럼 회차별 주제/내용이 나열된 강의 계획서 형태.\n가장 가까운 유형 하나를 docType에 넣고, 그 유형의 데이터만 채워. 나머지 유형 필드는 빈 배열/빈 값으로 둬.\n[docType=group → data]\n- 학교/학년별로 data 배열 항목(school)로 그룹핑.\n- 각 강좌: subject(과목), teacher(강사명), org(소속/출신, 없으면 ""), course(강좌명), sessions(회차 예 "6+1"), day(요일 한 글자 예 "토"), ap("am" 또는 "pm"), time("09:00~12:00" 24시간 형식), start(개강일 예 "8/29"), sci(과학/특별과목이면 true 아니면 false), label(마감/신설/특강/인기 중 표시된 것, 없으면 ""), clinic(클리닉·비고 있으면 아니면 ""), extra(수강료·강의실 등 그 외 정보를 "키: 값" 형태로, 없으면 "").\n[docType=weekly → weekly]\n- 각 수업: day(월~일 중 한 글자), start("18:30" 24시간 형식), end("21:30"), subject(과목/수업명), teacher(강사, 없으면 ""), room(강의실, 없으면 ""), note(비고, 없으면 "").\n[docType=sessions → sessionsPlan]\n- course(강좌명), teacher(강사), target(대상), period(기간 예 "8/22 ~ 10/3").\n- items: no(회차 숫자 문자열), date(날짜), topic(주제), content(세부 내용, 없으면 ""), note(비고, 없으면 "").\n[공통]\n- title(문서 제목), academy(학원명), phone(전화번호), website(웹사이트)도 찾아 채워. 없으면 "".\n- 반드시 JSON만 출력.';
 
-function normCourse(c){ return {subject:c.subject||'',teacher:c.teacher||'',org:c.org||'',course:c.course||'',sessions:c.sessions||'',day:(c.day||'').slice(0,2),ap:(String(c.ap).toLowerCase()==='am'?'am':'pm'),time:c.time||'',start:c.start||'',sci:!!c.sci,label:(['마감','신설','특강','인기'].indexOf(c.label)>=0?c.label:''),clinic:c.clinic||''}; }
+function normCourse(c){ return {subject:c.subject||'',teacher:c.teacher||'',org:c.org||'',course:c.course||'',sessions:c.sessions||'',day:(c.day||'').slice(0,2),ap:(String(c.ap).toLowerCase()==='am'?'am':'pm'),time:c.time||'',start:c.start||'',sci:!!c.sci,label:(['마감','신설','특강','인기'].indexOf(c.label)>=0?c.label:''),clinic:c.clinic||'',extra:c.extra||''}; }
+function normWeekly(e){ return {day:String(e.day||'').slice(0,1),start:e.start||'',end:e.end||'',subject:e.subject||'',teacher:e.teacher||'',room:e.room||'',note:e.note||''}; }
+function normSessionItem(it,i){ return {no:String(it.no||i+1),date:it.date||'',topic:it.topic||'',content:it.content||'',note:it.note||''}; }
 function applyExtracted(o){
   if(o.title) state.meta.title=o.title;
   if(o.academy) state.meta.academy=o.academy;
   if(o.phone) state.meta.phone=o.phone;
   if(o.website) state.meta.website=o.website;
-  if(Array.isArray(o.data)&&o.data.length){ state.data=o.data.map(g=>({school:g.school||'',courses:(g.courses||[]).map(normCourse)})); }
-  fillMetaInputs(); buildEditor(); renderPreview();
+  const hasGroup=Array.isArray(o.data)&&o.data.length;
+  const hasWeekly=Array.isArray(o.weekly)&&o.weekly.length;
+  const hasSess=o.sessionsPlan&&Array.isArray(o.sessionsPlan.items)&&o.sessionsPlan.items.length;
+  let dt=String(o.docType||'').toLowerCase();
+  if(['group','weekly','sessions'].indexOf(dt)<0) dt=hasWeekly?'weekly':(hasSess?'sessions':'group');
+  if(dt==='weekly'&&!hasWeekly) dt=hasSess?'sessions':'group';
+  if(dt==='sessions'&&!hasSess) dt=hasWeekly?'weekly':'group';
+  if(hasGroup) state.data=o.data.map(g=>({school:g.school||'',courses:(g.courses||[]).map(normCourse)}));
+  if(hasWeekly) state.weekly.entries=o.weekly.map(normWeekly);
+  if(hasSess) state.sessions={info:{course:o.sessionsPlan.course||'',teacher:o.sessionsPlan.teacher||'',target:o.sessionsPlan.target||'',period:o.sessionsPlan.period||''},items:o.sessionsPlan.items.map(normSessionItem)};
+  state.docType=dt; ensureStyleForType();
+  fillMetaInputs(); syncDocTypeUI(); buildStyleList(); buildEditor(); renderPreview();
 }
 let apiKey=''; try{ apiKey=localStorage.getItem('ttd_gemini_key')||''; }catch(e){}
 function getKey(){ let k=(apiKey||'').trim(); if(!k){ const el=$('settingsKey'); if(el&&(el.value||'').trim()) k=el.value.trim(); } return k; }
@@ -473,7 +732,7 @@ async function analyzeWithAI(){
   try{
     const parts=[{text:AI_PROMPT}];
     pdfImages.forEach(u=>parts.push({inline_data:{mime_type:'image/jpeg',data:u.split(',')[1]}}));
-    const body={contents:[{parts:parts}],generationConfig:{responseMimeType:'application/json',responseSchema:AI_SCHEMA,maxOutputTokens:8192,temperature:0.2}};
+    const body={contents:[{parts:parts}],generationConfig:{responseMimeType:'application/json',responseSchema:AI_SCHEMA,maxOutputTokens:16384,temperature:0.2}};
     const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),90000);
     const res=await fetch(GEMINI_URL(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctrl.signal}).finally(()=>clearTimeout(to));
     if(!res.ok){ const e=await res.text(); throw new Error('API '+res.status+' — '+e.slice(0,200)); }
@@ -484,8 +743,11 @@ async function analyzeWithAI(){
     txt=txt.trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
     let obj; try{ obj=JSON.parse(txt); }catch(pe){ throw new Error('응답 형식 오류'+(cand.finishReason?' ('+cand.finishReason+')':'')+': '+txt.slice(0,80)); }
     applyExtracted(obj);
-    const nc=(obj.data||[]).reduce((s,g)=>s+((g.courses||[]).length),0);
-    setAnalyze('완료 ✓ '+((obj.data||[]).length)+'개 학교·'+nc+'개 강좌를 채웠어요. 필요하면 수정하세요');
+    let doneMsg='완료 ✓ ';
+    if(state.docType==='weekly') doneMsg+=state.weekly.entries.length+'개 수업을 채웠어요 (주간 격자로 전환)';
+    else if(state.docType==='sessions') doneMsg+=state.sessions.items.length+'개 회차를 채웠어요 (회차 계획서로 전환)';
+    else { const nc=(obj.data||[]).reduce((s,g)=>s+((g.courses||[]).length),0); doneMsg+=((obj.data||[]).length)+'개 학교·'+nc+'개 강좌를 채웠어요'; }
+    setAnalyze(doneMsg+'. 필요하면 수정하세요');
   }catch(err){ const msg=(err.name==='AbortError'?'시간 초과(90초). 다시 시도하거나 설정에서 다른 모델을 선택해보세요':err.message); setAnalyze('분석 실패: '+msg); alert('AI 분석 실패: '+msg); }
   $('btnAnalyze').disabled=false;
 }
@@ -510,7 +772,13 @@ async function analyzeWithAI(){
 })();
 
 /* ---------- Init ---------- */
-buildStyleList(); bindMeta(); buildEditor(); bindEditor();
+buildStyleList(); bindMeta(); buildEditor(); bindEditor(); syncDocTypeUI();
+$('docTypeSeg').addEventListener('click',(e)=>{
+  const b=e.target.closest('button[data-dt]');
+  if(b&&b.dataset.dt!==state.docType){
+    state.docType=b.dataset.dt; ensureStyleForType(); syncDocTypeUI(); buildStyleList(); buildEditor(); renderPreview();
+  }
+});
 $('pvName').textContent=STYLE_META[state.styleKey].n; $('pvDesc').textContent=STYLE_META[state.styleKey].d;
 renderPreview();
 
