@@ -852,8 +852,9 @@ async function handlePdf(file){
     const pdf=await window.pdfjsLib.getDocument({data:buf}).promise;
     pdfImages=[];
     const prev=$('pdfPreview'); prev.innerHTML=''; prev.style.display='flex';
-    const n=Math.min(pdf.numPages,3);
+    const n=Math.min(pdf.numPages,20);
     for(let i=1;i<=n;i++){
+      setAnalyze('PDF 이미지 변환 중… ('+i+'/'+n+'페이지)');
       const page=await pdf.getPage(i);
       const b0=page.getViewport({scale:1});
       const vp=page.getViewport({scale:Math.min(2.2, 1600/b0.width)});
@@ -864,7 +865,7 @@ async function handlePdf(file){
       const img=document.createElement('img'); img.src=url; img.className='pdf-thumb'; prev.appendChild(img);
     }
     $('pdfActions').style.display='block';
-    setAnalyze(pdf.numPages+'페이지 로드됨. ‘AI로 분석’을 눌러 자동으로 채우세요'+(pdf.numPages>3?' (앞 3페이지 사용)':''));
+    setAnalyze(n+'페이지 로드됨'+(pdf.numPages>n?' (전체 '+pdf.numPages+'p 중 앞 '+n+'p 사용)':'')+'. ‘AI로 분석’을 눌러 자동으로 채우세요');
   }catch(err){ setAnalyze('PDF 읽기 실패'); alert('PDF를 읽지 못했습니다: '+err.message); }
 }
 
@@ -936,7 +937,8 @@ async function analyzeWithAI(){
     const parts=[{text:AI_PROMPT}];
     pdfImages.forEach(u=>parts.push({inline_data:{mime_type:'image/jpeg',data:u.split(',')[1]}}));
     const body={contents:[{parts:parts}],generationConfig:{responseMimeType:'application/json',responseSchema:AI_SCHEMA,maxOutputTokens:32768,temperature:0.2}};
-    const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),90000);
+    const timeoutMs=Math.min(240000, 60000+pdfImages.length*15000);
+    const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),timeoutMs);
     const res=await fetch(GEMINI_URL(key),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:ctrl.signal}).finally(()=>clearTimeout(to));
     if(!res.ok){ const e=await res.text(); throw new Error('API '+res.status+' — '+e.slice(0,200)); }
     const j=await res.json();
@@ -952,7 +954,7 @@ async function analyzeWithAI(){
     else if(state.docType==='sessions') doneMsg+=state.sessions.items.length+'개 회차를 채웠어요 (회차 계획서로 전환)';
     else { const nc=(obj.data||[]).reduce((s,g)=>s+((g.courses||[]).length),0); doneMsg+=((obj.data||[]).length)+'개 학교·'+nc+'개 강좌를 채웠어요'; }
     setAnalyze(doneMsg+'. 필요하면 수정하세요');
-  }catch(err){ const msg=(err.name==='AbortError'?'시간 초과(90초). 다시 시도하거나 설정에서 다른 모델을 선택해보세요':err.message); setAnalyze('분석 실패: '+msg); alert('AI 분석 실패: '+msg); }
+  }catch(err){ const msg=(err.name==='AbortError'?'시간 초과. 페이지가 많으면 오래 걸립니다. 다시 시도하거나 설정에서 다른 모델을 선택해보세요':err.message); setAnalyze('분석 실패: '+msg); alert('AI 분석 실패: '+msg); }
   $('btnAnalyze').disabled=false;
 }
 (function bindPdf(){
